@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useStudy } from "@/context/StudyContext";
 import { useUser } from "@clerk/nextjs";
@@ -26,7 +26,7 @@ const AI_MODELS = [
 
 type VideoState = "idle" | "generating" | "done" | "error";
 
-export default function VideoPage() {
+function VideoPageContent() {
     const { user } = useUser();
     const { activeTopic } = useStudy();
     const searchParams = useSearchParams();
@@ -410,5 +410,17 @@ export default function VideoPage() {
 
             <div className="pb-20" />
         </div>
+    );
+}
+
+export default function VideoPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center min-h-[400px]">
+                <Loader2 className="animate-spin text-[#2F58EE]" size={48} />
+            </div>
+        }>
+            <VideoPageContent />
+        </Suspense>
     );
 }
