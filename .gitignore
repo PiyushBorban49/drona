@@ -1,0 +1,42 @@
+# Environments
+.env
+.env.local
+.env.*.local
+
+# Frontend (Excluded per request)
+frontend/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.venv/
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Media Generation (AI Tutor specifics)
+media/
+manim_scenes/
+video-generator/output/
+*.mp4
+*.mp3
+*.wav
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
