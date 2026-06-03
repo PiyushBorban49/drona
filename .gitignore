@@ -3,8 +3,6 @@
 .env.local
 .env.*.local
 
-# Frontend (Excluded per request)
-frontend/
 # Python
 __pycache__/
 *.py[cod]
