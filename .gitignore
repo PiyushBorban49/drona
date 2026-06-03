@@ -3,6 +3,8 @@
 .env.local
 .env.*.local
 
+# Frontend (Excluded for Hugging Face deployment)
+frontend/
 # Python
 __pycache__/
 *.py[cod]
