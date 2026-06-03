@@ -5,8 +5,10 @@ FROM manimcommunity/manim:latest
 USER root
 
 # Install Node.js (needed for the video generator)
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs build-essential
+RUN apt-get update && apt-get install -y curl ca-certificates && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs build-essential && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
