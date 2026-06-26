@@ -2,16 +2,19 @@
 
 import NextImage from "next/image";
 import NextLink from "next/link";
-import { useSignIn, useSignUp, useClerk } from "@clerk/nextjs";
+import { useSignIn, useSignUp, useClerk, useAuth } from "@clerk/nextjs";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Chrome, Github, Mail, Lock, ArrowRight, Check, AlertCircle, Loader2, KeyRound } from "lucide-react";
 
 export default function AuthClient() {
-    const { signIn } = useSignIn();
-    const { signUp } = useSignUp();
+    const { isLoaded: signInLoaded, signIn } = useSignIn();
+    const { isLoaded: signUpLoaded, signUp } = useSignUp();
     const { setActive } = useClerk();
+    const { isLoaded: authLoaded, isSignedIn } = useAuth();
+
+    const isLoaded = signInLoaded && signUpLoaded && authLoaded;
 
 
     const [isSignUp, setIsSignUp] = useState(false);
@@ -41,11 +44,12 @@ export default function AuthClient() {
                 await setActive({ session: result.createdSessionId });
                 router.push("/dashboard");
             }
-        } catch (err: unknown) {
+        }
+        catch (err: unknown) {
             const clerkError = err as { errors?: { message: string }[] };
             setError(clerkError.errors?.[0]?.message || "Invalid email or password");
-        } finally {
-
+        }
+        finally {
             setLoading(null);
         }
     };
@@ -61,7 +65,7 @@ export default function AuthClient() {
                 emailAddress: email,
                 password,
             });
-            await signUp.prepareVerification({ strategy: "email_code" });
+            await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
             setPendingVerification(true);
         } catch (err: unknown) {
             const clerkError = err as { errors?: { message: string }[] };
@@ -79,8 +83,7 @@ export default function AuthClient() {
         setError(null);
 
         try {
-            const completeSignUp = await signUp.attemptVerification({
-                strategy: "email_code",
+            const completeSignUp = await signUp.attemptEmailAddressVerification({
                 code
             });
             if (completeSignUp.status === "complete") {
@@ -102,16 +105,37 @@ export default function AuthClient() {
 
     const handleSocialLogin = async (strategy: "oauth_google" | "oauth_github") => {
         if (!signIn) return;
+
+        if (isSignedIn) {
+            router.push("/dashboard");
+            return;
+        }
+
         try {
             await signIn.authenticateWithRedirect({
                 strategy,
                 redirectUrl: "/sso-callback",
                 redirectUrlComplete: "/dashboard",
             });
-        } catch (err) {
+        } catch (err: unknown) {
             console.error("OAuth Error:", err);
+            const clerkError = err as { errors?: { code: string; message: string }[]; message?: string };
+            // If already signed in, just go to dashboard
+            if (clerkError.errors?.[0]?.code === "already_signed_in" || clerkError.message?.includes("already signed in")) {
+                router.push("/dashboard");
+            } else {
+                setError(clerkError.errors?.[0]?.message || "Something went wrong with social login");
+            }
         }
     };
+
+    if (!isLoaded) {
+        return (
+            <div className="min-h-screen bg-[#ECECEC] flex items-center justify-center">
+                <Loader2 className="animate-spin text-[#0D43E8]" size={48} strokeWidth={3} />
+            </div>
+        );
+    }
 
     return (
         <main className="min-h-[100dvh] bg-[#ECECEC] font-sans">

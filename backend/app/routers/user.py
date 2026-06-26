@@ -37,12 +37,7 @@ async def study_time_endpoint(request: StudyTimeRequest):
         raise HTTPException(status_code=404, detail=result.get("error"))
     return result
 
-@router.post("/streak/sync")
-async def sync_streak_endpoint(request: UserIDRequest):
-    result = update_streak(request.user_id)
-    if not result.get("success"):
-        raise HTTPException(status_code=404, detail=result.get("error"))
-    return result
+
 
 @router.post("/continue-learning")
 async def continue_learning_endpoint(request: ContinueLearningItemRequest):

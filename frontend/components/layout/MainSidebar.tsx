@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
     LayoutDashboard, Video, BrainCircuit, MessageSquare,
-    HelpCircle, LogOut, Layers, Network
+    LogOut, Layers, Network, Binary
 } from "lucide-react";
 
 
@@ -14,6 +14,7 @@ const navItems = [
     { href: "/dashboard/quiz", label: "Quizzes", Icon: BrainCircuit },
     { href: "/dashboard/explorer", label: "Mind Map", Icon: Network },
     { href: "/dashboard/flashcards", label: "Flashcards", Icon: Layers },
+    { href: "/dashboard/scenario", label: "Scenarios", Icon: Binary },
     { href: "/dashboard/chat", label: "AI Tutor", Icon: MessageSquare },
 ];
 
@@ -61,18 +62,8 @@ export function MainSidebar() {
                 })}
             </nav>
 
-            {/* Bottom Section */}
             <div className="p-4 space-y-4">
-                {/* Upgrade Pro Button */}
-                <button className="w-full bg-[#BE003F] text-white border-[3px] border-black py-4 px-2 font-black text-sm uppercase tracking-widest shadow-[4px_4px_0_0_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all">
-                    GO PRO
-                </button>
-
                 <div className="pt-4 space-y-1">
-                    <button className="w-full flex items-center gap-3 px-4 py-2 text-gray-600 hover:text-black transition-colors group text-left">
-                        <HelpCircle size={20} className="group-hover:stroke-[3px]" />
-                        <span className="text-sm font-black tracking-tight">Help</span>
-                    </button>
                     <button className="w-full flex items-center gap-3 px-4 py-2 text-gray-600 hover:text-black transition-colors group text-left">
                         <LogOut size={20} className="group-hover:stroke-[3px]" />
                         <span className="text-sm font-black tracking-tight">Logout</span>

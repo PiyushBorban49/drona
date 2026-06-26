@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
-import { X, Rss, RefreshCw, CheckCircle2, AlertCircle, Upload, FileAudio, FileSpreadsheet, FileImage, LucideIcon } from "lucide-react";
-import { ingestRSS, ingestSearch, ingestAudio, ingestOCR, ingestDataset, IngestResponse, AudioIngestResponse, OCRIngestResponse, DatasetIngestResponse } from "@/lib/api";
+import { X, Rss, RefreshCw, CheckCircle2, AlertCircle, Upload, LucideIcon } from "lucide-react";
+import { ingestRSS, ingestSearch, IngestResponse } from "@/lib/api";
 
 interface SmartImportModalProps {
     isOpen: boolean;
@@ -10,7 +10,7 @@ interface SmartImportModalProps {
     onViewInGalaxy?: (topic: string) => void;
 }
 
-type ImportSource = "rss" | "search" | "audio" | "csv" | "ocr";
+type ImportSource = "rss" | "search";
 
 export default function SmartImportModal({ isOpen, onClose, onSuccess, onViewInGalaxy }: SmartImportModalProps) {
     const [activeSource, setActiveSource] = useState<ImportSource>("rss");
@@ -57,36 +57,8 @@ export default function SmartImportModal({ isOpen, onClose, onSuccess, onViewInG
                     setSuccessData(adaptedResult);
                     if (onSuccess) onSuccess(result as IngestResponse);
                 }
-            } else if (activeSource === "audio") {
-                if (!selectedFile) throw new Error("Please select an audio file.");
-                setStatus("Uploading & Transcribing...");
-                const result = await ingestAudio("default", selectedFile);
-                if (result.success) {
-                    setStatus("Extracting Narrative Nodes...");
-                    const adaptedResult = { title: `Acoustic Log: ${selectedFile.name}`, metadata: { author: "Podcast Source" } };
-                    setSuccessData(adaptedResult);
-                    if (onSuccess) onSuccess(result as AudioIngestResponse);
-                }
-            } else if (activeSource === "ocr") {
-                if (!selectedFile) throw new Error("Please select an image file.");
-                setStatus("Reading Handwritten Notes...");
-                const result = await ingestOCR("default", selectedFile);
-                if (result.success) {
-                    setStatus("Synthesizing Visual Knowledge...");
-                    const adaptedResult = { title: `OCR Note: ${selectedFile.name}`, metadata: { author: "Physical Notebook" } };
-                    setSuccessData(adaptedResult);
-                    if (onSuccess) onSuccess(result as OCRIngestResponse);
-                }
-            } else if (activeSource === "csv") {
-                if (!selectedFile) throw new Error("Please select a dataset file.");
-                setStatus("Analyzing Structural Data...");
-                const result = await ingestDataset("default", selectedFile);
-                if (result.success) {
-                    setStatus("Mapping Statistical Insights...");
-                    const adaptedResult = { title: `Dataset: ${selectedFile.name}`, metadata: { author: "Raw Context" } };
-                    setSuccessData(adaptedResult);
-                    if (onSuccess) onSuccess(result as DatasetIngestResponse);
-                }
+
+
             } else {
                 setError("This ingestion source is coming soon!");
             }
@@ -107,9 +79,6 @@ export default function SmartImportModal({ isOpen, onClose, onSuccess, onViewInG
     const sources: { id: ImportSource; label: string; icon: LucideIcon; color: string }[] = [
         { id: "rss", label: "RSS Feed", icon: Rss, color: "bg-[#EE802F]" },
         { id: "search", label: "Live Search", icon: RefreshCw, color: "bg-[#003BFF]" },
-        { id: "audio", label: "Podcast", icon: FileAudio, color: "bg-[#892CDC]" },
-        { id: "csv", label: "Dataset", icon: FileSpreadsheet, color: "bg-[#00D1FF]" },
-        { id: "ocr", label: "Notes", icon: FileImage, color: "bg-[#28A745]" },
     ];
 
     return (
@@ -203,9 +172,6 @@ export default function SmartImportModal({ isOpen, onClose, onSuccess, onViewInG
                                                 <Upload size={48} />
                                                 <p className="font-black uppercase tracking-tight text-xl">Drag & Drop or Click to Upload</p>
                                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                                                    {activeSource === "audio" ? "Supports MP3, WAV, M4A" :
-                                                        activeSource === "ocr" ? "Supports JPG, PNG (Handwritten Notes)" :
-                                                            "Supports CSV, JSON Datasets"}
                                                 </p>
                                             </>
                                         )}
@@ -280,6 +246,6 @@ export default function SmartImportModal({ isOpen, onClose, onSuccess, onViewInG
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

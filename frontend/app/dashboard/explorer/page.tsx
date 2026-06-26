@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useRef } from "react";
 import ChapterMindmap, { MindmapRef } from "@/components/ChapterMindmap";
+import { useStudy } from "@/context/StudyContext";
 import TopicDetailsSidebar from "@/components/TopicDetailsSidebar";
 import VideoPlayer from "@/components/VideoPlayer";
 import SmartImportModal from "@/components/SmartImportModal";
@@ -15,6 +16,7 @@ import {
 
 
 export default function ChapterExplorerPage() {
+    const { setActiveTopic, setActiveSubtopic } = useStudy();
     const [searchQuery, setSearchQuery] = useState("Cell Biology");
     const [mindmapData, setMindmapData] = useState<{ nodes: MindMapNode[], edges: MindMapEdge[] } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -36,7 +38,9 @@ export default function ChapterExplorerPage() {
         setIsLoading(true);
         setError(null);
         setSelectedSubtopic(null);
+        setActiveSubtopic(null);
         setVideoUrl(null);
+        setActiveTopic(topicToSearch);
 
         try {
             const response = await getMindMapByTopic(topicToSearch);
@@ -54,14 +58,16 @@ export default function ChapterExplorerPage() {
     };
 
     const handleSubtopicSelect = (nodeData: MindMapNode["data"] & { id: string }) => {
-        setSelectedSubtopic({
+        const subtopic: Subtopic = {
             id: nodeData.id,
             title: nodeData.label,
             description: nodeData.description || "",
             key_points: nodeData.key_points || [],
             video_url: nodeData.video_url,
             video_status: (nodeData.video_status || (nodeData.video_url ? 'done' : 'pending')) as Subtopic["video_status"]
-        });
+        };
+        setSelectedSubtopic(subtopic);
+        setActiveSubtopic(subtopic);
         setVideoUrl(null);
     };
 

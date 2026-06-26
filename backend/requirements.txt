@@ -35,6 +35,10 @@ python-pptx>=1.0.2
 # Video (needs ffmpeg installed separately)
 mux-python>=4.1.0
 manim-voiceover>=0.2.0
+httpx>=0.27.0
+google-generativeai>=0.8.0
+manim>=0.18.0
+
 
 # WebSockets (included in fastapi[standard])
 websockets==12.0

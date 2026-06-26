@@ -10,6 +10,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import clientPromise from "@/lib/mongodb";
 import { update_streak } from "@/lib/user_service";
 import ProgressBar from "@/components/ProgressBar";
+import QuickStartComponent from "@/components/QuickStartComponent";
 
 interface Course {
   id: string;
@@ -22,8 +23,6 @@ interface Course {
   playback_id?: string;
 }
 
-import QuickStartComponent from "@/components/QuickStartComponent";
-
 export default async function DashboardPage() {
   const user = await currentUser();
 
@@ -33,7 +32,6 @@ export default async function DashboardPage() {
       const client = await clientPromise;
       if (client) {
         const db = client.db();
-        // Sync streak on load
         await update_streak(user.id);
 
         const email = user.emailAddresses[0]?.emailAddress;
@@ -96,6 +94,7 @@ export default async function DashboardPage() {
     xpToNextLevel: 500,
     continueLearning: mongoUser?.continueLearning ?? [],
   };
+  
   return (
     <div className="max-w-6xl mx-auto space-y-12">
       {/* Welcome Header */}

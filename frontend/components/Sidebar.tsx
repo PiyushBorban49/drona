@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FaBrain, FaComments, FaQuestionCircle, FaBars, FaTimes, FaLayerGroup, FaHome, FaChevronLeft, FaChevronRight, FaPlayCircle, FaGavel, FaGamepad } from "react-icons/fa";
+import { FaBrain, FaComments, FaQuestionCircle, FaBars, FaTimes, FaLayerGroup, FaHome, FaChevronLeft, FaChevronRight, FaPlayCircle, FaGamepad } from "react-icons/fa";
 
 const Sidebar = () => {
     const [isOpen, setIsOpen] = useState<boolean>(true);
@@ -54,11 +54,7 @@ const Sidebar = () => {
             icon: <FaPlayCircle />,
             path: "/dashboard/video",
         },
-        {
-            name: "Socratic Debate",
-            icon: <FaGavel />,
-            path: "/dashboard/debate",
-        },
+
         {
             name: "Boss Fight",
             icon: <FaGamepad />,

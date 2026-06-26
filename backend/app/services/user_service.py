@@ -46,15 +46,11 @@ def update_streak(user_id: str):
     now = datetime.utcnow()
     
     if last_updated:
-        # If last updated was yesterday, increment streak
-        # If it was today, do nothing
-        # If it was more than 1 day ago, reset streak
         delta = now.date() - last_updated.date()
         if delta.days == 1:
             current_streak += 1
         elif delta.days > 1:
             current_streak = 1
-        # if delta.days == 0, keep same streak
     else:
         current_streak = 1
         

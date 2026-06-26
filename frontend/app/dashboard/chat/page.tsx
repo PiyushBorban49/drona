@@ -1,30 +1,29 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
-import { sendChat, sendSubtopicChat, ChatMessage, MasteryData, trackStudyTime } from "@/lib/api";
+import { useState, useRef, useEffect } from "react";
+import { sendChat, ChatMessage, MasteryData, trackStudyTime } from "@/lib/api";
 import { useStudy } from "@/context/StudyContext";
 import { useUser } from "@clerk/nextjs";
-import {
-    Send, Sparkles, Bot, User,
-    Flame
-} from "lucide-react";
+import { Send, Sparkles, Bot, User, Flame } from "lucide-react";
 
 export default function ChatPage() {
     const { user } = useUser();
+    const { activeTopic } = useStudy();
     const [messages, setMessages] = useState<ChatMessage[]>([{
         role: "assistant",
-        content: "I'm your AI tutor powered by Lumina Learning. Ask me anything about your courses, let's break down complex topics together!"
+        content: activeTopic
+            ? `I'm your AI tutor. I see you're studying "${activeTopic}". Ask me anything about it, let's break down complex concepts together!`
+            : "I'm your AI tutor powered by Lumina Learning. Ask me anything about your courses, let's break down complex topics together!"
     }]);
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
-    const { activeSubtopic } = useStudy();
     const chatEndRef = useRef<HTMLDivElement>(null);
 
     const [socraticMode] = useState(false);
-    const [, setMasteryData] = useState<MasteryData | null>(null);
-    const [, setShowSmartAids] = useState(false);
+    const [MasteryData, setMasteryData] = useState<MasteryData | null>(null);
+    const [ShowSmartAids, setShowSmartAids] = useState(false);
 
     useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });  // when new message arrives scrolldown
     }, [messages]);
 
     // Track study time (1 minute every message for simplicity, or we can use a timer)
@@ -49,13 +48,16 @@ export default function ChatPage() {
 
         try {
             const history = messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
-            let res;
-            if (activeSubtopic) {
-                res = await sendSubtopicChat(activeSubtopic, "topic_id", "chapter_id", userMsg, history, socraticMode, true);
-            } else {
-                if (!user?.id) throw new Error("No user found");
-                res = await sendChat(user.id, userMsg, "10", "Science", 1, history, socraticMode, true);
-            }
+
+            if (!user?.id) throw new Error("No user found");
+
+            const res = await sendChat(
+                user.id,
+                userMsg,
+                history,
+                socraticMode,
+                true
+            );
 
             // Log 1 minute of study time per interaction
             logStudyActivity();
@@ -134,7 +136,7 @@ export default function ChatPage() {
                     {/* Suggested Chips */}
                     <div className="flex items-center gap-3 mb-4 overflow-x-auto scrollbar-hide">
                         <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest whitespace-nowrap">Suggested:</span>
-                        {["Cellular Respiration", "Chloroplast Structure", "ATP Cycle"].map(chip => (
+                        {["Programming", "Linear Regression", "ATP Cycle"].map(chip => (
                             <button key={chip} className="px-4 py-2 bg-white border-[3px] border-black text-[10px] font-black uppercase tracking-wider hover:bg-[#F4E361] transition-all whitespace-nowrap shadow-[3px_3px_0_0_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none">
                                 {chip}
                             </button>

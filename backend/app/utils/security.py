@@ -3,10 +3,6 @@ import ipaddress
 from urllib.parse import urlparse
 
 def is_safe_url(url: str) -> bool:
-    """
-    Check if a URL is safe to fetch (prevents SSRF).
-    Ensures the URL is HTTP/HTTPS and doesn't resolve to a local/private IP.
-    """
     try:
         parsed = urlparse(url)
         if parsed.scheme not in ["http", "https"]:

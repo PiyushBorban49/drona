@@ -28,7 +28,7 @@ type VideoState = "idle" | "generating" | "done" | "error";
 
 export default function VideoPage() {
     const { user } = useUser();
-    const { activeTopic } = useStudy();
+    const { activeTopic, setActiveTopic } = useStudy();
     const searchParams = useSearchParams();
 
     const [topic, setTopic] = useState(activeTopic || "");
@@ -51,14 +51,17 @@ export default function VideoPage() {
         const qVideoUrl = searchParams.get("video_url");
         const qPlaybackId = searchParams.get("playback_id");
 
-        if (qTopic) setTopic(qTopic);
+        if (qTopic) {
+            setTopic(qTopic);
+            setActiveTopic(qTopic);
+        }
         if (qVideoUrl || qPlaybackId) {
             setVideoUrl(qVideoUrl);
             setPlaybackId(qPlaybackId);
             setState("done");
             setProgress(100);
         }
-    }, [searchParams]);
+    }, [searchParams, setActiveTopic]);
 
     useEffect(() => {
         if (activeTopic) setTopic(activeTopic);

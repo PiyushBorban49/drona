@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from app.schemas.models import TopicRequest
-from app.agents.quiz_agent import generate_quiz, generate_subtopic_quiz
+from app.agents.quiz_agent import generate_quiz
 from app.agents.flashcard_agent import generate_flashcards
 from app.agents.mindmap_agent import generate_mindmap
 from app.services.vector_store import get_workspace_context

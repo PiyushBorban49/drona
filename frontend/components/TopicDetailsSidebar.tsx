@@ -20,6 +20,8 @@ const TopicDetailsSidebar: React.FC<TopicDetailsSidebarProps> = ({
     const [activeTab, setActiveTab] = React.useState<'overview' | 'quiz'>('overview');
     const [quizData, setQuizData] = React.useState<Quiz | null>(null);
     const [quizLoading, setQuizLoading] = React.useState(false);
+    const [selectedAnswers, setSelectedAnswers] = React.useState<Record<number, number>>({});
+    const [showHints, setShowHints] = React.useState<Record<number, boolean>>({});
 
     // We can use random progress if not provided
     const progress = isCompleted ? 100 : (subtopic.progress || 0);
@@ -146,18 +148,74 @@ const TopicDetailsSidebar: React.FC<TopicDetailsSidebarProps> = ({
                             </div>
                         ) : quizData ? (
                             <div className="space-y-4">
-                                {quizData.questions.map((q, i) => (
-                                    <div key={i} className="p-4 bg-white border-2 border-black rounded-lg shadow-[4px_4px_0_0_rgba(0,0,0,1)]">
-                                        <p className="font-black text-sm mb-3">{q.question_text}</p>
-                                        <div className="space-y-2">
-                                            {q.options.map((opt: string, oi: number) => (
-                                                <button key={oi} className="w-full text-left p-2 border-2 border-gray-100 hover:border-black rounded text-xs font-bold transition-all">
-                                                    {opt}
-                                                </button>
-                                            ))}
+                                {quizData.questions.map((q, i) => {
+                                    const selected = selectedAnswers[i];
+                                    const isAnswered = selected !== undefined;
+                                    const showHint = showHints[i];
+
+                                    return (
+                                        <div key={i} className="p-4 bg-white border-2 border-black rounded-lg shadow-[4px_4px_0_0_rgba(0,0,0,1)] flex flex-col gap-3">
+                                            <div className="flex justify-between items-start gap-2">
+                                                <p className="font-black text-[13px] leading-tight">{q.question_text}</p>
+                                                {!isAnswered && (
+                                                    <button
+                                                        onClick={() => setShowHints(prev => ({ ...prev, [i]: !prev[i] }))}
+                                                        title="Show Hint"
+                                                        aria-label="Show Hint"
+                                                        className={`shrink-0 p-1 border border-black rounded transition-colors ${showHint ? 'bg-yellow-100' : 'bg-gray-50'}`}
+                                                    >
+                                                        <FaQuestionCircle size={10} className={showHint ? 'text-yellow-600' : 'text-gray-400'} />
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {showHint && !isAnswered && (
+                                                <div className="p-2 bg-yellow-50 border border-black border-dashed rounded text-[10px] font-bold italic">
+                                                    Hint: {q.hint}
+                                                </div>
+                                            )}
+
+                                            <div className="space-y-1.5">
+                                                {q.options.map((opt: string, oi: number) => {
+                                                    const isSelected = selected === oi;
+                                                    const isCorrect = oi === q.correct_option_index;
+
+                                                    let btnClass = "border-gray-200 hover:border-black";
+                                                    if (isAnswered) {
+                                                        if (isCorrect) btnClass = "bg-green-100 border-green-600 text-green-800";
+                                                        else if (isSelected) btnClass = "bg-red-50 border-red-600 text-red-800";
+                                                        else btnClass = "opacity-50 border-gray-100";
+                                                    } else if (isSelected) {
+                                                        btnClass = "bg-blue-50 border-black";
+                                                    }
+
+                                                    return (
+                                                        <button
+                                                            key={oi}
+                                                            disabled={isAnswered}
+                                                            onClick={() => setSelectedAnswers(prev => ({ ...prev, [i]: oi }))}
+                                                            className={`w-full text-left p-2 border-2 rounded text-[11px] font-bold transition-all flex items-center gap-2 ${btnClass}`}
+                                                        >
+                                                            <div className={`w-3 h-3 rounded-full border border-black flex items-center justify-center shrink-0 ${isSelected ? 'bg-black' : 'bg-white'}`}>
+                                                                {isSelected && <div className="w-1 h-1 bg-white rounded-full" />}
+                                                            </div>
+                                                            {opt}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {isAnswered && (
+                                                <div className={`p-2 rounded border border-black text-[10px] font-bold leading-tight ${selected === q.correct_option_index ? 'bg-green-50' : 'bg-red-50'}`}>
+                                                    <span className="uppercase text-[8px] font-black block mb-1 underline">
+                                                        {selected === q.correct_option_index ? "Correct!" : "Reasoning:"}
+                                                    </span>
+                                                    {q.explanation}
+                                                </div>
+                                            )}
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         ) : null}
                     </section>

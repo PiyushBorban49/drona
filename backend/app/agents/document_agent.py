@@ -13,7 +13,6 @@ from langchain_core.output_parsers import JsonOutputParser
 from app.config import get_settings
 
 async def extract_text_pypdf(file_path: str) -> str:
-    """Extract text from PDF using pypdf."""
     text = ""
     try:
         reader = pypdf.PdfReader(file_path)
@@ -26,7 +25,6 @@ async def extract_text_pypdf(file_path: str) -> str:
     return text
 
 async def extract_text_docx(file_path: str) -> str:
-    """Extract text from DOCX using python-docx."""
     text = ""
     try:
         doc = docx.Document(file_path)
@@ -37,7 +35,6 @@ async def extract_text_docx(file_path: str) -> str:
     return text
 
 async def extract_text_pptx(file_path: str) -> str:
-    """Extract text from PPTX using python-pptx."""
     text = ""
     try:
         prs = Presentation(file_path)
@@ -50,7 +47,6 @@ async def extract_text_pptx(file_path: str) -> str:
     return text
 
 async def synthesize_document_content(filename: str, text: str) -> Dict:
-    """Use AI to synthesize document text into structured knowledge."""
     if not text.strip():
         return {"summary": "Document extraction failed.", "concepts": [], "key_points": []}
 
@@ -69,14 +65,12 @@ async def synthesize_document_content(filename: str, text: str) -> Dict:
     chain = prompt | llm | JsonOutputParser()
     
     try:
-        # Cap text at 15000 chars for LLM context
-        return await chain.ainvoke({"filename": filename, "text": text[:15000]})
+        return await chain.ainvoke({"filename": filename, "text": text})
     except Exception as e:
         print(f"Document synthesis error: {e}")
         return {"summary": "Document analysis failed.", "concepts": []}
 
 async def process_document(file_path: str) -> Dict:
-    """Main orchestration for Document ingestion."""
     ext = os.path.splitext(file_path)[1].lower()
     text = ""
     
@@ -98,5 +92,5 @@ async def process_document(file_path: str) -> Dict:
         "success": True,
         "filename": os.path.basename(file_path),
         "analysis": analysis,
-        "raw_text_preview": text[:500]
+        "raw_text_preview": text
     }

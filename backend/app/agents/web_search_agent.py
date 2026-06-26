@@ -1,7 +1,3 @@
-"""
-Dronacharya v3 — Live Web Search Agent
-Performs real-time research using DuckDuckGo and synthesizes findings.
-"""
 from typing import List, Dict, Optional
 from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_groq import ChatGroq
@@ -9,7 +5,6 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 
 def perform_web_search(query: str) -> str:
-    """Perform a live web search and return a consolidated context."""
     try:
         search = DuckDuckGoSearchRun()
         return search.run(query)
@@ -18,7 +13,6 @@ def perform_web_search(query: str) -> str:
         return ""
 
 async def synthesize_search_results(query: str, search_context: str) -> Dict:
-    """Use AI to synthesize search results into structured knowledge."""
     if not search_context:
         return {"summary": "No live data found for this query.", "concepts": [], "key_points": []}
 
@@ -32,14 +26,12 @@ async def synthesize_search_results(query: str, search_context: str) -> Dict:
     chain = prompt | llm | JsonOutputParser()
     
     try:
-        # Staying within limits
-        return await chain.ainvoke({"query": query, "context": search_context[:10000]})
+        return await chain.ainvoke({"query": query, "context": search_context})
     except Exception as e:
         print(f"Web search synthesis error: {e}")
         return {"summary": "Search analysis failed.", "concepts": []}
 
 async def process_web_search(query: str) -> Dict:
-    """Main orchestration for Live Web Surfing ingestion."""
     context = perform_web_search(query)
     if not context:
         return {"success": False, "error": "Search failed or returned no results."}

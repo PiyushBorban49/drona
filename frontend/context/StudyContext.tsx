@@ -16,8 +16,15 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     const [activeTopic, setActiveTopic] = useState("");
     const [activeSubtopic, setActiveSubtopic] = useState<Subtopic | null>(null);
 
+    const value = React.useMemo(() => ({
+        activeTopic,
+        setActiveTopic,
+        activeSubtopic,
+        setActiveSubtopic
+    }), [activeTopic, activeSubtopic]);
+
     return (
-        <StudyContext.Provider value={{ activeTopic, setActiveTopic, activeSubtopic, setActiveSubtopic }}>
+        <StudyContext.Provider value={value}>
             {children}
         </StudyContext.Provider>
     );

@@ -1,4 +1,3 @@
-// API Configuration and fetch wrappers
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -19,7 +18,7 @@ export async function fetchAPI<T>(endpoint: string, options: RequestInit = {}): 
                 errorMsg = errorData.detail;
             }
         } catch {
-            // Not a JSON response or doesn't have detail
+            throw new Error("Not a JSON response or doesn't have detail");
         }
         throw new Error(errorMsg);
     }
@@ -27,20 +26,7 @@ export async function fetchAPI<T>(endpoint: string, options: RequestInit = {}): 
     return response.json();
 }
 
-// Subject/Chapter Types
-export interface Subject {
-    name: string;
-    chapters: number;
-}
 
-export interface SubjectsResponse {
-    class: string;
-    subjects: Subject[];
-}
-
-export interface ClassesResponse {
-    classes: string[];
-}
 
 // ============ CHAPTER HIERARCHY TYPES ============
 
@@ -73,19 +59,7 @@ export interface Chapter {
     video_status: 'pending' | 'generating' | 'done' | 'error';
 }
 
-export interface ChapterStructureResponse {
-    success: boolean;
-    chapter?: Chapter;
-    cached?: boolean;
-    error?: string;
-}
 
-export interface SubtopicChatResponse {
-    response: string;
-    chat_history: ChatMessage[];
-    suggested_actions: string[];
-    mastery_data?: MasteryData;
-}
 
 export interface MasteryData {
     glossary: { term: string; definition: string }[];
@@ -140,6 +114,7 @@ export interface Question {
     options: string[];
     correct_option_index: number;
     explanation: string;
+    hint: string;
     difficulty: string;
 }
 
@@ -182,36 +157,7 @@ export interface ChatResponse {
     mastery_data?: MasteryData;
 }
 
-// Debate Types
-export interface DebateRound {
-    round_num: number;
-    argument_a: string;
-    argument_b: string;
-    moderator_question: string;
-}
 
-export interface Debate {
-    topic: string;
-    stance_a: string;
-    stance_b: string;
-    rounds: DebateRound[];
-    status: 'ready' | 'active' | 'judged';
-}
-
-export interface DebateStartResponse {
-    success: boolean;
-    debate: Debate;
-}
-
-export interface DebateRoundResponse {
-    success: boolean;
-    round: DebateRound;
-}
-
-export interface DebateJudgeResponse {
-    success: boolean;
-    feedback: string;
-}
 
 // Scenario Types
 export interface Scenario {
@@ -269,87 +215,20 @@ export interface SearchIngestResponse {
     };
 }
 
-export interface AudioIngestResponse {
-    success: boolean;
-    message: string;
-    analysis: {
-        summary: string;
-        concepts: { title: string; description: string }[];
-    };
-}
 
-export interface OCRIngestResponse {
-    success: boolean;
-    message: string;
-    analysis: {
-        summary: string;
-        concepts: { title: string; description: string }[];
-    };
-}
 
-export interface DatasetIngestResponse {
-    success: boolean;
-    message: string;
-    analysis: {
-        summary: string;
-        concepts: { title: string; description: string }[];
-    };
-}
+
+
 
 export type IngestResponse =
     RSSIngestResponse |
-    SearchIngestResponse |
-    AudioIngestResponse |
-    OCRIngestResponse |
-    DatasetIngestResponse;
+    SearchIngestResponse;
 
 // ============ API FUNCTIONS ============
 
-export async function getClasses(): Promise<ClassesResponse> {
-    return fetchAPI<ClassesResponse>('/classes');
-}
 
-export async function getSubjects(className?: string): Promise<SubjectsResponse> {
-    const query = className ? `?class_name=${className}` : '';
-    return fetchAPI<SubjectsResponse>(`/subjects${query}`);
-}
 
-export async function getChapterStructure(
-    class_name: string,
-    subject: string,
-    chapter: number
-): Promise<ChapterStructureResponse> {
-    return fetchAPI<ChapterStructureResponse>('/chapter/structure', {
-        method: 'POST',
-        body: JSON.stringify({ class_name, subject, chapter }),
-    });
-}
 
-export async function sendSubtopicChat(
-    subtopic: Subtopic,
-    topicId: string,
-    chapterId: string,
-    message: string,
-    chatHistory: ChatMessage[],
-    socraticMode: boolean = false,
-    extractMastery: boolean = false
-): Promise<SubtopicChatResponse> {
-    return fetchAPI<SubtopicChatResponse>('/chat/subtopic', {
-        method: 'POST',
-        body: JSON.stringify({
-            subtopic_id: subtopic.id,
-            topic_id: topicId,
-            chapter_id: chapterId,
-            subtopic_title: subtopic.title,
-            subtopic_description: subtopic.description,
-            key_points: subtopic.key_points,
-            message,
-            chat_history: chatHistory,
-            socratic_mode: socraticMode,
-            extract_mastery: extractMastery
-        }),
-    });
-}
 
 export async function generateTopicVideo(
     topic: string,
@@ -400,20 +279,7 @@ export async function generateSubtopicQuiz(subtopic: Subtopic): Promise<QuizResp
     });
 }
 
-export async function combineVideos(
-    parentId: string,
-    videoPaths: string[],
-    outputType: 'topic' | 'chapter'
-): Promise<SubtopicVideoResponse> {
-    return fetchAPI<SubtopicVideoResponse>('/videos/combine', {
-        method: 'POST',
-        body: JSON.stringify({
-            parent_id: parentId,
-            video_paths: videoPaths,
-            output_type: outputType,
-        }),
-    });
-}
+
 
 export async function getMindMap(class_name: string, subject: string, chapter: number): Promise<MindMapResponse> {
     const topic = `Class ${class_name} ${subject} Chapter ${chapter}`;
@@ -449,9 +315,6 @@ export async function getFlashcards(query: string): Promise<FlashcardResponse> {
 export async function sendChat(
     user_id: string,
     message: string,
-    class_name: string,
-    subject: string,
-    chapter: number,
     chat_history: ChatMessage[],
     socraticMode: boolean = false,
     extractMastery: boolean = false
@@ -484,12 +347,7 @@ export async function trackStudyTime(user_id: string, minutes: number): Promise<
     });
 }
 
-export async function syncStreak(user_id: string): Promise<{ success: boolean; streak: number }> {
-    return fetchAPI<{ success: boolean; streak: number }>('/user/streak/sync', {
-        method: 'POST',
-        body: JSON.stringify({ user_id }),
-    });
-}
+
 
 export async function saveToContinueLearning(user_id: string, item: { title: string; category: string;[key: string]: unknown }): Promise<{ success: boolean }> {
 
@@ -532,17 +390,10 @@ async function fetchWithFile<T>(endpoint: string, workspace_id: string, file: Fi
     return response.json();
 }
 
-export async function ingestAudio(workspace_id: string, file: File): Promise<AudioIngestResponse> {
-    return fetchWithFile<AudioIngestResponse>('/ingest/audio', workspace_id, file);
-}
 
-export async function ingestOCR(workspace_id: string, file: File): Promise<OCRIngestResponse> {
-    return fetchWithFile<OCRIngestResponse>('/ingest/ocr', workspace_id, file);
-}
 
-export async function ingestDataset(workspace_id: string, file: File): Promise<DatasetIngestResponse> {
-    return fetchWithFile<DatasetIngestResponse>('/ingest/dataset', workspace_id, file);
-}
+
+
 
 export interface VideoFromFileResponse {
     success: boolean;
@@ -556,28 +407,7 @@ export async function generateVideoFromFile(workspace_id: string, file: File): P
     return fetchWithFile<VideoFromFileResponse>('/video/generate-from-file', workspace_id, file);
 }
 
-// ============ DEBATE FUNCTIONS ============
 
-export async function startDebate(topic: string, stance_a: string = "", stance_b: string = ""): Promise<DebateStartResponse> {
-    return fetchAPI<DebateStartResponse>('/debate/start', {
-        method: 'POST',
-        body: JSON.stringify({ workspace_id: 'default', topic, stance_a, stance_b }),
-    });
-}
-
-export async function getDebateRound(topic: string, stance_a: string, stance_b: string, round_num: number): Promise<DebateRoundResponse> {
-    return fetchAPI<DebateRoundResponse>(`/debate/round?round_num=${round_num}`, {
-        method: 'POST',
-        body: JSON.stringify({ workspace_id: 'default', topic, stance_a, stance_b }),
-    });
-}
-
-export async function judgeDebate(topic: string, argument_a: string, argument_b: string, user_verdict: 'a' | 'b' | 'draw'): Promise<DebateJudgeResponse> {
-    return fetchAPI<DebateJudgeResponse>('/debate/judge', {
-        method: 'POST',
-        body: JSON.stringify({ debate_id: 'default', round_num: 1, topic, argument_a, argument_b, user_verdict }),
-    });
-}
 
 // ============ SCENARIO FUNCTIONS ============
 

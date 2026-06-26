@@ -1,7 +1,3 @@
-"""
-Dronacharya v3 — Text-to-Speech Service
-Uses edge-tts for free, high-quality TTS.
-"""
 import asyncio
 import base64
 import os
@@ -11,16 +7,11 @@ from app.config import get_settings
 
 
 async def generate_audio_file(text: str, output_path: str) -> float:
-    """
-    Generate an MP3 audio file from text.
-    Returns duration in seconds.
-    """
     s = get_settings()
     try:
         communicate = edge_tts.Communicate(text, s.EDGE_TTS_VOICE)
         await communicate.save(output_path)
 
-        # Get duration via ffprobe
         cmd = [
             "ffprobe", "-v", "error",
             "-show_entries", "format=duration",
@@ -38,10 +29,6 @@ async def generate_audio_file(text: str, output_path: str) -> float:
 
 
 async def generate_audio_base64(text: str) -> dict:
-    """
-    Generate audio and return as base64 string (for streaming to frontend).
-    Returns: {"audio_b64": str, "duration": float}
-    """
     tmp_path = f"/tmp/tts_{hash(text) % 100000}.mp3"
     duration = await generate_audio_file(text, tmp_path)
 

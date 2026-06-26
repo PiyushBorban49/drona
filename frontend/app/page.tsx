@@ -6,7 +6,6 @@ export const dynamic = "force-dynamic";
 
 export default async function Page() {
   const { userId } = await auth();
-  console.log("Auth Details:", { userId });
   if (userId) {
     redirect("/dashboard");
   }

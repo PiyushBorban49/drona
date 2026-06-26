@@ -15,7 +15,6 @@ def create_scenario(
     topic: str = "",
     context: str = "",
 ) -> dict:
-    """Generate an immersive scenario based on the topic."""
     llm = get_llm()
 
     prompt = f"""Create an immersive roleplay scenario for NCERT students:
@@ -26,7 +25,7 @@ Context: {context[:2000] if context else "Use NCERT knowledge."}
 
 The scenario should:
 1. Place the student in a historical event, scientific situation, or real-world problem
-2. The student must USE their NCERT knowledge to succeed
+2. The student must USE their knowledge to succeed
 3. Include a clear objective and 3-4 turns of interaction
 4. Be engaging and dramatic
 
@@ -64,7 +63,6 @@ def respond_in_scenario(
     turn_history: list = [],
     topics_tested: list = [],
 ) -> dict:
-    """Generate the character's response and evaluate the student's knowledge."""
     llm = get_llm()
 
     history_str = ""
@@ -103,7 +101,6 @@ After your in-character response, add a JSON block on a new line starting with |
         response = llm.invoke(messages)
         full_content = response.content.strip()
 
-        # Split character response from evaluation
         character_response = full_content
         evaluation = {"accuracy_score": 5, "concepts_demonstrated": [], "feedback": ""}
 

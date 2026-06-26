@@ -5,19 +5,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
-from app.routers import chat, content, knowledge, video, curriculum, srs, debate, scenario, workspace, user, ingest
+from app.routers import chat, content, video, curriculum, scenario, user, ingest
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup and shutdown events."""
     s = get_settings()
-    # Ensure Groq API Key is available to LangChain agents
     os.environ["GROQ_API_KEY"] = s.GROQ_API_KEY
     
     print("=" * 60)
-    print("  🏹 DRONACHARYA v3 — AI NCERT Tutor")
-    print("  Powered by Groq (Llama 3.3 70B) + MongoDB Atlas")
+    print("  DRONACHARYA v3 — AI NCERT Tutor")
+    print(f"  Powered by Groq ({s.GROQ_MODEL}) + MongoDB Atlas")
     print("=" * 60)
     s = get_settings()
     print(f"  LLM Model : {s.GROQ_MODEL}")
@@ -31,7 +29,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Dronacharya API",
-    description="AI-Powered NCERT Tutor — Knowledge Galaxy, Voice Tutoring, SRS, Debates & Boss Fights",
+    description="AI-Powered NCERT Tutor — Knowledge Galaxy, Voice Tutoring, SRS & Boss Fights",
     version="3.0.0",
     lifespan=lifespan,
 )
@@ -60,13 +58,9 @@ app.mount("/keyframes", StaticFiles(directory=_KEYFRAMES_DIR), name="keyframes")
 # ── Include all routers ──────────────────────────────
 app.include_router(chat.router)
 app.include_router(content.router)
-app.include_router(knowledge.router)
 app.include_router(video.router)
 app.include_router(curriculum.router)
-app.include_router(srs.router)
-app.include_router(debate.router)
 app.include_router(scenario.router)
-app.include_router(workspace.router)
 app.include_router(user.router)
 app.include_router(ingest.router)
 
@@ -79,13 +73,9 @@ def root():
         "status": "running",
         "features": [
             "AI Tutor Chat",
-            "Knowledge Galaxy",
-            "Voice Streaming",
-            "Spaced Repetition",
             "Quiz & Flashcards",
             "Mindmaps",
             "Video Generation",
-            "Multi-Agent Debate",
             "Scenario Boss Fights",
         ],
     }
@@ -93,5 +83,6 @@ def root():
 
 @app.get("/health", tags=["Health"])
 def health():
-    return {"status": "healthy", "llm": "groq/llama-3.3-70b"}
+    s = get_settings()
+    return {"status": "healthy", "llm": s.GROQ_MODEL}
 

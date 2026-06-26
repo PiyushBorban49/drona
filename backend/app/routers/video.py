@@ -2,14 +2,15 @@
 Dronacharya v3 — Video Router
 """
 import os
-from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi import APIRouter, File, UploadFile, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
+import json
 import uuid
 import shutil
-from app.schemas.models import VideoRequest, SubtopicVideoRequest, LongVideoRequest
+from app.schemas.models import VideoRequest, SubtopicVideoRequest
 from app.agents.video_agent import generate_subtopic_video
-from app.agents.long_video_agent import generate_course_video
 from app.agents.document_agent import process_document
+
 
 router = APIRouter(prefix="/video", tags=["Video"])
 
@@ -48,13 +49,7 @@ async def subtopic_video_endpoint(request: SubtopicVideoRequest):
     return _make_video_url(result)
 
 
-@router.post("/long")
-async def long_video_endpoint(request: LongVideoRequest):
-    result = await generate_course_video(
-        topic=request.topic,
-        target_duration_minutes=request.target_duration_minutes,
-    )
-    return _make_video_url(result)
+
 @router.post("/generate-from-file")
 async def generate_from_file_endpoint(workspace_id: str = "default", file: UploadFile = File(...)):
     """Upload a document, analyze it, and generate a video based on its content."""
@@ -100,3 +95,60 @@ async def generate_from_file_endpoint(workspace_id: str = "default", file: Uploa
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
+
+
+@router.websocket("/ws")
+async def video_websocket(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        # Initial message should contain model, api_key, and topic/title/description
+        data = await websocket.receive_text()
+        request_data = json.loads(data)
+        
+        topic = request_data.get("topic", "Educational Video")
+        description = request_data.get("description", f"A video about {topic}")
+        model = request_data.get("model")
+        api_key = request_data.get("api_key")
+        
+        async def on_progress(event: dict):
+            try:
+                await websocket.send_text(json.dumps(event))
+            except Exception:
+                pass # Connection might be closed
+
+        result = await generate_subtopic_video(
+            subtopic_id=f"vid_ws_{uuid.uuid4().hex[:8]}",
+            title=topic,
+            description=description,
+            model=model,
+            api_key=api_key,
+            on_progress=on_progress
+        )
+        
+        # If the result itself wasn't already sent as final_video
+        if result.get("success") and "video_path" in result:
+            video_url = _make_video_url(result)["video_url"]
+            await websocket.send_text(json.dumps({
+                "type": "completed",
+                "video_url": video_url
+            }))
+        elif not result.get("success"):
+             await websocket.send_text(json.dumps({
+                "type": "error",
+                "message": result.get("error", "Unknown error occurred")
+            }))
+
+    except WebSocketDisconnect:
+        print("[VideoWS] Client disconnected")
+    except Exception as e:
+        print(f"[VideoWS] Error: {e}")
+        try:
+            await websocket.send_text(json.dumps({"type": "error", "message": str(e)}))
+        except:
+            pass
+    finally:
+        try:
+            await websocket.close()
+        except:
+            pass
+

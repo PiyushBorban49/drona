@@ -10,5 +10,4 @@ def get_llm(temperature: float | None = None) -> ChatGroq:
     )
 
 def get_llm_strict() -> ChatGroq:
-    """Returns a zero-temperature LLM for structured outputs (quizzes, JSON)."""
-    return get_llm(temperature=0.0)
+    return get_llm(temperature=0.75)

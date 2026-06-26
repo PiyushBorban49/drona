@@ -10,7 +10,7 @@ from app.dependencies import get_llm_strict
 def generate_flashcards(topic: str, context: str = "", num_cards: int = 10) -> dict:
     llm = get_llm_strict()
     prompt = f"""Create {num_cards} flashcards for: {topic}
-Context: {context[:3000] if context else "Use general NCERT knowledge."}
+Context: {context}
 
 Return ONLY valid JSON:
 {{"topic": "{topic}", "cards": [{{"id": 1, "front": "Question/Term", "back": "Answer/Definition", "difficulty": "medium"}}]}}"""

@@ -23,14 +23,3 @@ class TutorState(TypedDict):
     quiz_json: Optional[Dict[str, Any]]
 
 
-class DebateState(TypedDict):
-    topic: str
-    stance_a: str
-    stance_b: str
-    current_round: int
-    max_rounds: int
-    history: List[Dict[str, str]]
-    argument_a: str
-    argument_b: str
-    moderator_question: str
-    status: str  # "debating", "judging", "complete"
