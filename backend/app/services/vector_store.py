@@ -1,6 +1,6 @@
 """
 Dronacharya v3 — Vector Store Service (InsForge pgvector)
-Replaces MongoDB Atlas Vector Search. Embeddings are generated through the
+Embeddings are generated through the
 InsForge AI gateway (openai/text-embedding-3-small, 1536-dim) and stored in
 the public.workspace_embeddings table (pgvector). Similarity search runs via
 the match_workspace_chunks RPC (cosine distance, HNSW index).
