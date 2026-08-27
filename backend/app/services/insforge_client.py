@@ -34,12 +34,25 @@ class InsForgeError(Exception):
 _client: httpx.Client | None = None
 
 
+def _ensure_configured() -> str:
+    """Fail fast with an actionable message when env vars are missing."""
+    s = get_settings()
+    if not s.INSFORGE_URL:
+        raise InsForgeError(
+            "INSFORGE_URL is not configured — create backend/.env (copy from "
+            "backend/.env.example) with INSFORGE_URL and INSFORGE_API_KEY, "
+            "then restart the server",
+            status_code=503,
+        )
+    return s.INSFORGE_URL.rstrip("/")
+
+
 def _get_client() -> httpx.Client:
     global _client
     if _client is None:
         s = get_settings()
         _client = httpx.Client(
-            base_url=s.INSFORGE_URL.rstrip("/"),
+            base_url=_ensure_configured(),
             timeout=httpx.Timeout(60.0),
         )
     return _client
@@ -62,21 +75,31 @@ def verify_access_token(token: str) -> dict | None:
     Validate a user access token issued by InsForge.
     Returns the user dict on success, or None when the token is invalid/expired.
     """
-    try:
-        resp = _get_client().get(
-            "/api/auth/sessions/current",
-            headers={"Authorization": f"Bearer {token}"},
-        )
-    except httpx.HTTPError as e:
-        raise InsForgeError(f"Auth verification unreachable: {e}", status_code=503) from e
+    last_exc: Exception | None = None
+    resp: httpx.Response | None = None
+    for attempt in range(2):   # one quick retry absorbs transient blips
+        try:
+            resp = _get_client().get(
+                "/api/auth/sessions/current",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            break
+        except httpx.HTTPError as e:
+            last_exc = e
+            import time
+            time.sleep(0.4)
+    if resp is None:
+        # Network-level failure reaching InsForge (unreachable/DNS/proxy/offline)
+        msg = f"Auth verification unreachable: {last_exc}"
+        print(f"[auth] {msg}", flush=True)
+        raise InsForgeError(msg, status_code=503) from last_exc
 
     if resp.status_code == 401 or resp.status_code == 403:
         return None
     if resp.status_code != 200:
-        raise InsForgeError(
-            f"Unexpected auth response ({resp.status_code}): {resp.text[:200]}",
-            status_code=502,
-        )
+        msg = f"Unexpected auth response ({resp.status_code}): {resp.text[:200]}"
+        print(f"[auth] {msg}", flush=True)
+        raise InsForgeError(msg, status_code=502)
 
     body = resp.json()
     user = body.get("user") if isinstance(body, dict) else None
@@ -103,7 +126,10 @@ def sign_in(email: str, password: str) -> dict:
 def _request(method: str, path: str, *, json: Any = None) -> Any:
     try:
         resp = _get_client().request(method, path, json=json, headers=_admin_headers())
+    except InsForgeError:
+        raise                      # propagates the actionable 'not configured' error verbatim
     except httpx.HTTPError as e:
+        print(f"[insforge] {method} {path} failed: {e}", flush=True)
         raise InsForgeError(f"InsForge {method} {path} failed: {e}", status_code=503) from e
     if resp.status_code >= 400:
         try:

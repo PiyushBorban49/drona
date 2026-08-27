@@ -83,8 +83,11 @@ def verify_token(token: str) -> dict:
     try:
         user = insforge_client.verify_access_token(token)
     except insforge_client.InsForgeError as e:
-        raise HTTPException(status_code=e.status_code if e.status_code < 500 else 503,
-                            detail="Auth service unavailable")
+        # Surface the REAL reason in the server console (env missing, network,
+        # InsForge 5xx...) while returning a safe message to the client.
+        print(f"[auth] token verification failed → HTTP 503 | cause: {e}", flush=True)
+        raise HTTPException(status_code=503 if e.status_code >= 500 else e.status_code,
+                            detail="Auth service unavailable") from e
 
     if not user:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
