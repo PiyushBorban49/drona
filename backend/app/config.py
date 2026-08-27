@@ -5,7 +5,11 @@ from functools import lru_cache
 class Settings(BaseSettings):
     # ── LLM (Groq) ──────────────────────────────────────
     GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "openai/gpt-oss-120b"
+    # llama-3.3-70b-versatile: non-reasoning → returns message.content directly,
+    # and comfortably fits free-tier TPM budgets. If you explicitly want a
+    # reasoning model (openai/gpt-oss-*), pin GROQ_MODEL in your .env —
+    # mindmap_agent auto-adjusts (reasoning_effort=low + TPM-safe budgets).
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
     GROQ_TEMPERATURE: float = 0.7
 
     # ── Google Gemini ──────────────────────────────────

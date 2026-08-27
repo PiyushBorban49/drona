@@ -5,7 +5,11 @@ from typing import List, Dict, Any
 from groq import AsyncGroq
 from app.video_generator.prompts.prompts import PLANNER_PROMPT
 
-async def plan_scenes(topic: str, api_key: str = None, model: str = 'openai/gpt-oss-120b') -> List[Dict[str, Any]]:
+async def plan_scenes(topic: str, api_key: str = None, model: str = None) -> List[Dict[str, Any]]:
+    # Follow the deployment-wide model unless explicitly overridden.
+    # NOTE: reasoning models (openai/gpt-oss-*) can return EMPTY message.content
+    # on small TPM budgets and eat the whole quota — llama default avoids both.
+    model = model or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
     groq_key = os.getenv('GROQ_API_KEY') or os.getenv('LLM_API_KEY') or api_key
     print(f"[Planner] Planning scenes for: {topic} using Groq SDK ({model})")
 

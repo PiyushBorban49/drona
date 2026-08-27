@@ -228,7 +228,7 @@ async def generate_manim_code(scene_plan: Dict[str, Any], config: Dict[str, Any]
         try:
             chat_completion = await client.chat.completions.create(
                 messages=[{"role": "user", "content": input_prompt}],
-                model="openai/gpt-oss-120b",# <<<<---------------------------
+                model=os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
                 temperature=0.5
             )
             full_code = chat_completion.choices[0].message.content

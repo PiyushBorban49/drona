@@ -107,9 +107,19 @@ def normalize_mindmap(data) -> dict:
 
 _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.DOTALL | re.IGNORECASE)
 
-# Generous ceiling so reasoning-mode models (see below) fit thinking + answer.
-_MAX_COMPLETION_TOKENS = 8192
+# Groq bills TPM as prompt_tokens + max_tokens. Free/on-demand tiers for many
+# models cap around 8000 TPM, so the completion budget must be ADAPTIVE — a
+# fixed generous value makes request+budget overshoot the quota (observed:
+# 'Limit 8000, Requested 8527' with max_tokens=8192).
+_TPM_SAFE_TOTAL = 7500      # target total (prompt + completion) per call
+_COMPLETION_CAP = 6000      # plenty for a 12-18 node JSON map
 _REASONING_KEYS = ("reasoning", "reasoning_content", "thinking", "analysis")
+
+
+def _completion_budget(prompt_chars: int) -> int:
+    """max_tokens that keeps prompt + completion under the TPM-safe total."""
+    est_prompt = prompt_chars // 4 + 64          # ~4 chars/token heuristic
+    return max(1024, min(_COMPLETION_CAP, _TPM_SAFE_TOTAL - est_prompt))
 
 
 def _coerce_text(response) -> str:
@@ -220,12 +230,27 @@ Return ONLY valid JSON:
 def _attempt(llm, topic: str, context: str, strict: bool) -> dict:
     """One LLM round-trip → normalized mindmap. Raises ValueError/JSONDecodeError on bad output."""
     prompt = _build_prompt(topic, context, strict)
-    call_kwargs: dict = {"max_tokens": _MAX_COMPLETION_TOKENS}
+    budget = _completion_budget(len(prompt))
+    call_kwargs: dict = {"max_tokens": budget}
     # gpt-oss-style models “think” in an analysis channel before answering;
     # explicitly LOW effort keeps room (and budget) for the actual JSON answer.
     if str(getattr(llm, "model_name", "")).startswith("openai/gpt-oss"):
         call_kwargs["reasoning_effort"] = "low"
-    response = llm.bind(**call_kwargs).invoke([HumanMessage(content=prompt)])
+
+    try:
+        response = llm.bind(**call_kwargs).invoke([HumanMessage(content=prompt)])
+    except Exception as e:
+        msg = str(e)
+        # 413 / rate_limit_exceeded on tokens → retry once with a halved budget
+        if "413" in msg or "rate_limit_exceeded" in msg or "tokens per minute" in msg.lower():
+            smaller = max(512, budget // 2)
+            print(f"[mindmap] TPM/413 hit with completion budget {budget}; retrying once with {smaller}", flush=True)
+            retry_kwargs = {"max_tokens": smaller}
+            if str(getattr(llm, "model_name", "")).startswith("openai/gpt-oss"):
+                retry_kwargs["reasoning_effort"] = "low"
+            response = llm.bind(**retry_kwargs).invoke([HumanMessage(content=prompt)])
+        else:
+            raise
 
     text = _coerce_text(response)
     if not text:
