@@ -10,16 +10,29 @@ import shutil
 from app.schemas.models import VideoRequest, SubtopicVideoRequest
 from app.agents.video_agent import generate_subtopic_video
 from app.agents.document_agent import process_document
+from app.services import storage_service
 
 
 router = APIRouter(prefix="/video", tags=["Video"])
 
 
 def _make_video_url(result: dict) -> dict:
-    """Extract filename from video_path and build the served URL."""
+    """Upload the generated video to InsForge storage and build a durable URL.
+    Falls back to local /videos static serving when the upload fails."""
     if result.get("success"):
         video_path = result["video_path"].replace("\\", "/")
         filename = os.path.basename(video_path)
+
+        stored = storage_service.upload_video(video_path, filename)
+        if stored:
+            return {
+                "success": True,
+                "video_url": stored["url"],
+                "storage_key": stored["key"],
+                "bucket": stored["bucket"],
+            }
+        # Fallback: ephemeral container filesystem (previous behaviour)
+        print("[Video] ⚠️ Falling back to local static video URL")
         return {"success": True, "video_url": f"/videos/{filename}"}
     return result
 
@@ -84,7 +97,7 @@ async def generate_from_file_endpoint(workspace_id: str = "default", file: Uploa
              # Add the topic and analysis metadata and mux playback id to the response
              response["topic"] = topic
              response["analysis"] = analysis
-             response["playback_id"] = video_result.get("mux", {}).get("playback_id") if video_result.get("mux") else None
+             response["mux_playback_id"] = video_result.get("mux", {}).get("playback_id") if video_result.get("mux") else None
              
         return response
 

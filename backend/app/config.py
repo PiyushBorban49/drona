@@ -11,12 +11,17 @@ class Settings(BaseSettings):
     # ── Google Gemini ──────────────────────────────────
     GOOGLE_API_KEY: str = ""
 
-    # ── Vector Database (MongoDB Atlas) ──────────────────
-    EMBEDDING_MODEL: str = "mixedbread-ai/mxbai-embed-large-v1"
+    # ── InsForge Backend-as-a-Service ───────────────────
+    INSFORGE_URL: str = ""                # e.g. https://<appkey>.us-east.insforge.app
+    INSFORGE_API_KEY: str = ""            # admin API key (ik_...) — server-side only
+    INSFORGE_ANON_KEY: str = ""           # optional; only used for proxied signup flows
 
-    # ── MongoDB ──────────────────────────────────────────
-    MONGODB_URI: str = ""
-    MONGODB_DB_NAME: str = "AITutor"
+    # Embeddings run through the InsForge AI gateway (OpenRouter)
+    EMBEDDING_MODEL: str = "openai/text-embedding-3-small"
+
+    # ── Storage buckets (InsForge Storage) ───────────────
+    VIDEO_BUCKET: str = "videos"
+    KEYFRAME_BUCKET: str = "keyframes"
 
     # ── TTS ──────────────────────────────────────────────
     EDGE_TTS_VOICE: str = "en-US-ChristopherNeural"

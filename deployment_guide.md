@@ -21,7 +21,8 @@ Hugging Face Spaces is the best free option for your backend because it provides
 6. Once created, go to **Settings** > **Variables and Secrets**.
 7. Add all variables from your `backend/.env`:
     * `GROQ_API_KEY`
-    * `MONGODB_URI`
+    * `INSFORGE_URL`
+    * `INSFORGE_API_KEY`
     * `MUX_TOKEN_ID`
     * `MUX_SECRET_KEY`
     * ...and any others.

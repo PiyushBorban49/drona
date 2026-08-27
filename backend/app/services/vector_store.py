@@ -1,94 +1,73 @@
 """
-Dronacharya v3 — MongoDB Vector Store Service
-Replaces ChromaDB with MongoDB Atlas Vector Search for unified data management.
+Dronacharya v3 — Vector Store Service (InsForge pgvector)
+Replaces MongoDB Atlas Vector Search. Embeddings are generated through the
+InsForge AI gateway (openai/text-embedding-3-small, 1536-dim) and stored in
+the public.workspace_embeddings table (pgvector). Similarity search runs via
+the match_workspace_chunks RPC (cosine distance, HNSW index).
 """
-import os
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from __future__ import annotations
+
 from app.config import get_settings
-from app.services.mongo_client import get_database
+from app.services import insforge_client
 
-_embeddings: HuggingFaceEmbeddings | None = None
+VECTOR_TABLE = "workspace_embeddings"
 
-VECTOR_COLLECTION = "workspace_embeddings"
-INDEX_NAME = "vector_index"
-
-def get_embeddings() -> HuggingFaceEmbeddings:
-    global _embeddings
-    if _embeddings is None:
-        s = get_settings()
-        _embeddings = HuggingFaceEmbeddings(
-            model_name=s.EMBEDDING_MODEL,
-            model_kwargs={"device": "cpu"},
-            encode_kwargs={"normalize_embeddings": True, "batch_size": 16},
-        )
-    return _embeddings
-
-def get_vector_collection():
-    db = get_database()
-    return db[VECTOR_COLLECTION]
 
 def ingest_documents(texts: list[str], metadatas: list[dict], ids: list[str]):
-    """Ingest documents into MongoDB Atlas."""
-    collection = get_vector_collection()
-    embeddings = get_embeddings()
-    vectors = embeddings.embed_documents(texts)
-    
-    docs = []
+    """Embed + insert documents into the workspace_embeddings table."""
+    if not texts:
+        return
+
+    embeddings = insforge_client.embed_texts(texts)
+
+    rows = []
     for i in range(len(texts)):
-        doc = {
-            "text": texts[i],
-            "embedding": vectors[i],
-            "metadata": metadatas[i],
+        rows.append({
             "workspace_id": metadatas[i].get("workspace_id"),
-            "id_ref": ids[i]
-        }
-        docs.append(doc)
-    
-    if docs:
-        collection.insert_many(docs)
-    print(f"--- Ingested {len(texts)} documents into MongoDB ---")
+            "text": texts[i],
+            "embedding": embeddings[i],          # JSON array → vector column
+            "metadata": metadatas[i] or {},
+            "id_ref": ids[i],
+        })
 
-def get_workspace_context(
-    workspace_id: str, query: str, top_k: int = 5
-) -> str:
-    """Retrieve relevant workspace text from MongoDB Atlas Vector Search."""
-    collection = get_vector_collection()
-    embeddings = get_embeddings()
+    insforge_client.db_insert(VECTOR_TABLE, rows)
+    print(f"--- Ingested {len(texts)} documents into InsForge pgvector ---")
 
-    query_vector = embeddings.embed_query(query)
 
-    pipeline = [
-        {
-            "$vectorSearch": {
-                "index": INDEX_NAME,
-                "path": "embedding",
-                "queryVector": query_vector,
-                "numCandidates": 100,
-                "limit": top_k,
-                "filter": {"workspace_id": {"$eq": workspace_id}}
-            }
-        },
-        {
-            "$project": {
-                "_id": 0,
-                "text": 1,
-                "score": {"$meta": "vectorSearchScore"}
-            }
-        }
-    ]
+def search_documents(
+    workspace_id: str | None,
+    query: str,
+    top_k: int = 5,
+) -> list[dict]:
+    """
+    Semantic similarity search scoped to a workspace.
+    Falls back to an unfiltered search when the filtered one is empty
+    (same behaviour as the previous Atlas implementation).
+    """
+    query_vector = insforge_client.embed_query(query)
 
+    results = insforge_client.rpc("match_workspace_chunks", {
+        "query_embedding": query_vector,
+        "match_count": top_k,
+        "filter_workspace_id": workspace_id,
+    }) or []
+
+    if not results and workspace_id is not None:
+        results = insforge_client.rpc("match_workspace_chunks", {
+            "query_embedding": query_vector,
+            "match_count": top_k,
+            "filter_workspace_id": None,
+        }) or []
+
+    return results
+
+
+def get_workspace_context(workspace_id: str, query: str, top_k: int = 5) -> str:
+    """Retrieve relevant workspace text for RAG prompts."""
     try:
-        results = list(collection.aggregate(pipeline))
-        
-        if not results:
-            # Fallback: query without filter
-            pipeline[0]["$vectorSearch"].pop("filter", None)
-            results = list(collection.aggregate(pipeline))
-
-        docs = [r["text"] for r in results]
-        return "\n\n".join(docs) if docs else ""
-
+        results = search_documents(workspace_id, query, top_k=top_k)
+        docs = [r.get("text", "") for r in results if r.get("text")]
+        return "\n\n".join(docs)
     except Exception as e:
-        print(f"MongoDB Vector Search error: {e}")
-        # If index doesn't exist yet, return empty
+        print(f"pgvector search error: {e}")
         return ""

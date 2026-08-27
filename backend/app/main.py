@@ -12,15 +12,17 @@ from app.routers import chat, content, video, curriculum, scenario, user, ingest
 async def lifespan(app: FastAPI):
     s = get_settings()
     os.environ["GROQ_API_KEY"] = s.GROQ_API_KEY
-    
+
     print("=" * 60)
     print("  DRONACHARYA v3 — AI NCERT Tutor")
-    print(f"  Powered by Groq ({s.GROQ_MODEL}) + MongoDB Atlas")
+    print(f"  Powered by Groq ({s.GROQ_MODEL}) + InsForge Backend")
     print("=" * 60)
     s = get_settings()
     print(f"  LLM Model : {s.GROQ_MODEL}")
-    print(f"  Vector DB : MongoDB Atlas (workspace_embeddings)")
-    print(f"  MongoDB   : {'Connected' if s.MONGODB_URI else 'Not configured'}")
+    print(f"  Vector DB : InsForge Postgres (pgvector — workspace_embeddings)")
+    print(f"  InsForge  : {'Connected' if s.INSFORGE_URL and s.INSFORGE_API_KEY else 'Not configured!'}")
+    print(f"  Auth      : InsForge Auth (Bearer tokens)")
+    print(f"  Storage   : buckets '{s.VIDEO_BUCKET}' / '{s.KEYFRAME_BUCKET}'")
     print(f"  TTS Voice : {s.EDGE_TTS_VOICE}")
     print("=" * 60)
     yield
