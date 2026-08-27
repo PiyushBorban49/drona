@@ -265,10 +265,45 @@ const MindmapInner = forwardRef<MindmapRef, ChapterMindmapProps>(({
 
 MindmapInner.displayName = "MindmapInner";
 
+/** Guarantees a render crash shows a readable panel instead of a white screen. */
+class MindmapErrorBoundary extends React.Component<
+    { children: React.ReactNode },
+    { error: Error | null }
+> {
+    state = { error: null as Error | null };
+    static getDerivedStateFromError(error: Error) {
+        return { error };
+    }
+    componentDidCatch(error: Error, info: React.ErrorInfo) {
+        console.error("[mindmap] render crash:", error, info.componentStack);
+    }
+    render() {
+        if (this.state.error) {
+            return (
+                <div className="w-full h-full flex items-center justify-center p-8">
+                    <div className="max-w-lg bg-red-50 border-[4px] border-red-600 p-8 shadow-[8px_8px_0_0_rgba(220,38,38,0.4)]">
+                        <h3 className="font-black text-xl uppercase tracking-tight text-red-700 mb-2">Mindmap failed to render</h3>
+                        <p className="text-sm font-bold text-red-600 break-words">{this.state.error.message}</p>
+                        <button
+                            onClick={() => this.setState({ error: null })}
+                            className="mt-4 px-6 py-2 bg-red-600 text-white font-black uppercase tracking-widest text-sm border-[3px] border-black shadow-[4px_4px_0_0_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
+                        >
+                            Try again
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
 const ChapterMindmap = forwardRef<MindmapRef, ChapterMindmapProps>((props, ref) => {
     return (
         <ReactFlowProvider>
-            <MindmapInner {...props} ref={ref} />
+            <MindmapErrorBoundary>
+                <MindmapInner {...props} ref={ref} />
+            </MindmapErrorBoundary>
         </ReactFlowProvider>
     );
 });
