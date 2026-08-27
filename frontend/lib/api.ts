@@ -1,7 +1,12 @@
 
 import { getAuthHeaders } from '@/lib/insforge';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Resolve the FastAPI base:
+//   • NEXT_PUBLIC_API_URL set (local dev / split hosting) → absolute URL.
+//   • UNSET (single-container deploys e.g. Hugging Face Spaces) → SAME-ORIGIN
+//     mode: every call goes to '/api/<path>' and next.config.ts rewrites it
+//     onto the internal uvicorn port. No CORS, no baked-in public hostname.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || '/api';
 
 export async function fetchAPI<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const authHeaders = await getAuthHeaders();

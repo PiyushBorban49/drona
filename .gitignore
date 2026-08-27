@@ -53,3 +53,7 @@ video-generator/output/
 .roo
 .trae
 .windsurf
+
+# Windows environment-var artifacts (e.g. %APPDATA% npm shims)
+%APPDATA%/
+lint_output.txt
