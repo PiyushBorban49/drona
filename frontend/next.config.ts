@@ -3,9 +3,14 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: false,
-  serverExternalPackages: ["mongodb"],
   images: {
-    domains: ["images.unsplash.com", "api.dicebear.com", "img.clerk.com"],
+    domains: [
+      "images.unsplash.com",
+      "api.dicebear.com",
+      "lh3.googleusercontent.com",
+      "avatars.githubusercontent.com",
+      "sxswykm5.us-east.insforge.app",
+    ],
   },
 };
 

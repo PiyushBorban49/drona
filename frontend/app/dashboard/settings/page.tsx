@@ -2,7 +2,8 @@
 import React, { useState } from "react";
 import { User, Bell, LogOut, ChevronRight, Settings } from "lucide-react";
 
-import { useClerk, useUser } from "@clerk/nextjs";
+import { insforge } from "@/lib/insforge";
+import { useUser } from "@/context/AuthContext";
 import ProfileEditModal from "@/components/ProfileEditModal";
 
 interface SettingsItemBase {
@@ -35,7 +36,6 @@ interface SettingsSection {
 }
 
 export default function SettingsPage() {
-    const { signOut } = useClerk();
     const { user } = useUser();
 
     // Toggle States
@@ -47,7 +47,7 @@ export default function SettingsPage() {
 
     const handleSignOut = async () => {
         try {
-            await signOut();
+            await insforge.auth.signOut();
             window.location.href = "/";
         } catch (err) {
             console.error("Sign out failed", err);

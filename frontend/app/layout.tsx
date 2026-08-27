@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Outfit, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { ClerkProvider } from "@clerk/nextjs";
+import { InsForgeAuthProvider } from "@/context/AuthContext";
 
 
 
@@ -29,15 +29,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <ClerkProvider>
+      <InsForgeAuthProvider>
         <body
           className={`${outfit.variable} ${geistMono.variable} antialiased font-sans font-medium scrollbar-hide`}
         >
           {children}
         </body>
-
-
-      </ClerkProvider>
+      </InsForgeAuthProvider>
     </html>
   );
 }

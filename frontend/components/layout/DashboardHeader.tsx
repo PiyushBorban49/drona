@@ -3,7 +3,7 @@ import React from "react";
 import { Settings } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/context/AuthContext";
 
 export function DashboardHeader() {
     const { user } = useUser();

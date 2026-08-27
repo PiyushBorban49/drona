@@ -40,6 +40,12 @@ async def reward_xp_endpoint(request: RewardXPRequest,
     return result
 
 
+@router.post("/activity/ping")
+async def activity_ping(user: AuthUser = Depends(get_current_user)):
+    """Streak bump on dashboard visit."""
+    return user_service.update_streak(user.id)
+
+
 @router.post("/activity/study")
 async def study_time_endpoint(request: StudyTimeRequest,
                               user: AuthUser = Depends(get_current_user)):

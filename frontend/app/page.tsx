@@ -1,14 +1,27 @@
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useUser } from "@/context/AuthContext";
 import AuthClient from "./AuthClient";
 
-export const dynamic = "force-dynamic";
+export default function Page() {
+    const { isLoaded, isSignedIn } = useUser();
+    const router = useRouter();
 
-export default async function Page() {
-  const { userId } = await auth();
-  if (userId) {
-    redirect("/dashboard");
-  }
+    useEffect(() => {
+        if (isLoaded && isSignedIn) {
+            router.replace("/dashboard");
+        }
+    }, [isLoaded, isSignedIn, router]);
 
-  return <AuthClient />;
+    if (!isLoaded || isSignedIn) {
+        return (
+            <div className="min-h-screen bg-[#ECECEC] flex items-center justify-center">
+                <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    return <AuthClient />;
 }

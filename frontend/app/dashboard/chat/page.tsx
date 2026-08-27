@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import { sendChat, ChatMessage, MasteryData, trackStudyTime } from "@/lib/api";
 import { useStudy } from "@/context/StudyContext";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/context/AuthContext";
 import { Send, Sparkles, Bot, User, Flame } from "lucide-react";
 
 export default function ChatPage() {
@@ -28,12 +28,10 @@ export default function ChatPage() {
 
     // Track study time (1 minute every message for simplicity, or we can use a timer)
     const logStudyActivity = async () => {
-        if (user?.id) {
-            try {
-                await trackStudyTime(user.id, 1); // Log 1 minute of activity
-            } catch (e) {
-                console.error("Failed to log study time:", e);
-            }
+        try {
+            await trackStudyTime(1); // Log 1 minute of activity
+        } catch (e) {
+            console.error("Failed to log study time:", e);
         }
     };
 
@@ -49,10 +47,7 @@ export default function ChatPage() {
         try {
             const history = messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
-            if (!user?.id) throw new Error("No user found");
-
             const res = await sendChat(
-                user.id,
                 userMsg,
                 history,
                 socraticMode,

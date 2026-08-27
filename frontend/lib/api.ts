@@ -1,10 +1,14 @@
 
+import { getAuthHeaders } from '@/lib/insforge';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function fetchAPI<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const authHeaders = await getAuthHeaders();
     const response = await fetch(`${API_BASE}${endpoint}`, {
         headers: {
             'Content-Type': 'application/json',
+            ...authHeaders,
             ...options.headers,
         },
         ...options,
@@ -313,7 +317,6 @@ export async function getFlashcards(query: string): Promise<FlashcardResponse> {
 }
 
 export async function sendChat(
-    user_id: string,
     message: string,
     chat_history: ChatMessage[],
     socraticMode: boolean = false,
@@ -322,9 +325,8 @@ export async function sendChat(
     return fetchAPI<ChatResponse>('/chat', {
         method: 'POST',
         body: JSON.stringify({
-            user_id,
-            message,
             workspace_id: 'default',
+            message,
             chat_history,
             socratic_mode: socraticMode,
             extract_mastery: extractMastery
@@ -333,27 +335,29 @@ export async function sendChat(
 }
 
 
-export async function rewardXP(user_id: string, amount: number): Promise<{ success: boolean; new_xp: number; new_level: number }> {
+export async function rewardXP(amount: number): Promise<{ success: boolean; new_xp: number; new_level: number }> {
     return fetchAPI('/user/stats/reward', {
         method: 'POST',
-        body: JSON.stringify({ user_id, amount }),
+        body: JSON.stringify({ amount }),
     });
 }
 
-export async function trackStudyTime(user_id: string, minutes: number): Promise<{ success: boolean }> {
+export async function trackStudyTime(minutes: number): Promise<{ success: boolean; hours_learned?: number }> {
     return fetchAPI('/user/activity/study', {
         method: 'POST',
-        body: JSON.stringify({ user_id, minutes }),
+        body: JSON.stringify({ minutes }),
     });
 }
 
+export async function pingActivity(): Promise<{ success: boolean; streak?: number }> {
+    return fetchAPI('/user/activity/ping', { method: 'POST', body: '{}' });
+}
 
-
-export async function saveToContinueLearning(user_id: string, item: { title: string; category: string;[key: string]: unknown }): Promise<{ success: boolean }> {
+export async function saveToContinueLearning(item: { title: string; category: string;[key: string]: unknown }): Promise<{ success: boolean }> {
 
     return fetchAPI('/user/continue-learning', {
         method: 'POST',
-        body: JSON.stringify({ user_id, item }),
+        body: JSON.stringify({ item }),
     });
 }
 
@@ -373,15 +377,17 @@ export async function ingestSearch(workspace_id: string, query: string): Promise
     });
 }
 
+// File uploads bypass fetchAPI because it is tuned for JSON payloads.
 async function fetchWithFile<T>(endpoint: string, workspace_id: string, file: File): Promise<T> {
     const formData = new FormData();
     formData.append('file', file);
 
-    // Manual fetch because fetchAPI might be tuned for JSON
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const authHeaders = await getAuthHeaders();
     const response = await fetch(`${baseUrl}${endpoint}?workspace_id=${workspace_id}`, {
         method: 'POST',
         body: formData,
+        headers: authHeaders,
     });
 
     if (!response.ok) {

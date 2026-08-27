@@ -2,20 +2,15 @@
 
 import NextImage from "next/image";
 import NextLink from "next/link";
-import { useSignIn, useSignUp, useClerk, useAuth } from "@clerk/nextjs";
+import { insforge } from "@/lib/insforge";
+import { useUser } from "@/context/AuthContext";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Chrome, Github, Mail, Lock, ArrowRight, Check, AlertCircle, Loader2, KeyRound } from "lucide-react";
 
 export default function AuthClient() {
-    const { isLoaded: signInLoaded, signIn } = useSignIn();
-    const { isLoaded: signUpLoaded, signUp } = useSignUp();
-    const { setActive } = useClerk();
-    const { isLoaded: authLoaded, isSignedIn } = useAuth();
-
-    const isLoaded = signInLoaded && signUpLoaded && authLoaded;
-
+    const { isLoaded, isSignedIn } = useUser();
 
     const [isSignUp, setIsSignUp] = useState(false);
     const [email, setEmail] = useState("");
@@ -24,30 +19,35 @@ export default function AuthClient() {
     const [pendingVerification, setPendingVerification] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [notice, setNotice] = useState<string | null>(null);
     const [loading, setLoading] = useState<string | null>(null);
 
     const router = useRouter();
 
     const onSignInWithEmail = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!signIn) return;
         setLoading("email");
         setError(null);
 
         try {
-            const result = await signIn.create({
-                identifier: email,
+            const { data, error: signInError } = await insforge.auth.signInWithPassword({
+                email,
                 password,
             });
 
-            if (result.status === "complete") {
-                await setActive({ session: result.createdSessionId });
+            if (signInError) {
+                setError(
+                    signInError.statusCode === 403
+                        ? "Please verify your email first."
+                        : signInError.message || "Invalid email or password"
+                );
+            } else if (data) {
                 router.push("/dashboard");
             }
         }
         catch (err: unknown) {
-            const clerkError = err as { errors?: { message: string }[] };
-            setError(clerkError.errors?.[0]?.message || "Invalid email or password");
+            const sdkError = err as { message?: string };
+            setError(sdkError.message || "Invalid email or password");
         }
         finally {
             setLoading(null);
@@ -56,55 +56,92 @@ export default function AuthClient() {
 
     const onSignUpWithEmail = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!signUp) return;
         setLoading("email");
         setError(null);
+        setNotice(null);
+
+        // Derive a display name from the email local part (no name field in the UI).
+        const derivedName = email.split("@")[0]
+            .replace(/[._-]+/g, " ")
+            .replace(/\b\w/g, (c) => c.toUpperCase());
 
         try {
-            await signUp.create({
-                emailAddress: email,
+            const { data, error: signUpError } = await insforge.auth.signUp({
+                email,
                 password,
+                name: derivedName || undefined,
+                redirectTo: `${window.location.origin}/sign-in`,
             });
-            await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-            setPendingVerification(true);
+
+            if (signUpError) {
+                setError(signUpError.message || "Failed to create account");
+            } else if (data?.requireEmailVerification) {
+                // Project is configured with code-based email verification:
+                // show the 6-digit code input on this page.
+                setPendingVerification(true);
+            } else if (data?.accessToken) {
+                // No verification required — user is already signed in.
+                router.push("/dashboard");
+            }
         } catch (err: unknown) {
-            const clerkError = err as { errors?: { message: string }[] };
-            setError(clerkError.errors?.[0]?.message || "Failed to create account");
+            const sdkError = err as { message?: string };
+            setError(sdkError.message || "Failed to create account");
         } finally {
 
+            setLoading(null);
+        }
+    };
+
+    const onResendCode = async () => {
+        setLoading("resend");
+        setError(null);
+        try {
+            await insforge.auth.resendVerificationEmail({
+                email,
+                redirectTo: `${window.location.origin}/sign-in`,
+            });
+            setNotice("A new verification code has been sent.");
+        } catch (err: unknown) {
+            const sdkError = err as { message?: string };
+            setError(sdkError.message || "Could not resend the code");
+        } finally {
             setLoading(null);
         }
     };
 
     const onVerifyCode = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!signUp) return;
         setLoading("verify");
         setError(null);
 
         try {
-            const completeSignUp = await signUp.attemptEmailAddressVerification({
-                code
+            const { data: verifyData, error: verifyError } = await insforge.auth.verifyEmail({
+                email,
+                otp: code,
             });
-            if (completeSignUp.status === "complete") {
-                await setActive({ session: completeSignUp.createdSessionId });
+
+            if (verifyError) {
+                console.error("Verification error:", verifyError);
+                setError(verifyError.message || "Invalid verification code. Please try again.");
+            } else if (verifyData) {
+                // Session is saved automatically after successful verification.
                 router.push("/dashboard");
             } else {
-                console.log("Sign-up status after verification:", completeSignUp.status);
+                console.log("Sign-up status after verification:", verifyData);
                 setError("Verification incomplete. Please try again.");
             }
         } catch (err: unknown) {
             console.error("Verification error:", err);
-            const clerkError = err as { errors?: { message: string }[] };
-            setError(clerkError.errors?.[0]?.message || "Invalid verification code. Please try again.");
+            const sdkError = err as { message?: string };
+            setError(sdkError.message || "Invalid verification code. Please try again.");
         } finally {
 
             setLoading(null);
         }
     };
 
-    const handleSocialLogin = async (strategy: "oauth_google" | "oauth_github") => {
-        if (!signIn) return;
+    const handleSocialLogin = async (provider: "google" | "github") => {
+        setError(null);
 
         if (isSignedIn) {
             router.push("/dashboard");
@@ -112,20 +149,16 @@ export default function AuthClient() {
         }
 
         try {
-            await signIn.authenticateWithRedirect({
-                strategy,
-                redirectUrl: "/sso-callback",
-                redirectUrlComplete: "/dashboard",
+            // PKCE flow — when the redirect lands back in this provider tree
+            // with `insforge_code`, the SDK exchanges it automatically.
+            const { error: oauthError } = await insforge.auth.signInWithOAuth(provider, {
+                redirectTo: `${window.location.origin}/dashboard`,
             });
+            if (oauthError) throw oauthError;
         } catch (err: unknown) {
             console.error("OAuth Error:", err);
-            const clerkError = err as { errors?: { code: string; message: string }[]; message?: string };
-            // If already signed in, just go to dashboard
-            if (clerkError.errors?.[0]?.code === "already_signed_in" || clerkError.message?.includes("already signed in")) {
-                router.push("/dashboard");
-            } else {
-                setError(clerkError.errors?.[0]?.message || "Something went wrong with social login");
-            }
+            const sdkError = err as { message?: string };
+            setError(sdkError.message || "Something went wrong with social login");
         }
     };
 
@@ -275,7 +308,7 @@ export default function AuthClient() {
                                     <div className="grid grid-cols-2 gap-4 mb-5">
                                         <button
                                             type="button"
-                                            onClick={() => handleSocialLogin("oauth_google")}
+                                            onClick={() => handleSocialLogin("google")}
                                             disabled={!!loading}
                                             className="flex items-center justify-center gap-2 w-full h-[56px] bg-white border-[3px] border-black shadow-[4px_4px_0px_#000] font-black uppercase text-sm hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:bg-gray-100 disabled:opacity-50"
                                         >
@@ -285,7 +318,7 @@ export default function AuthClient() {
 
                                         <button
                                             type="button"
-                                            onClick={() => handleSocialLogin("oauth_github")}
+                                            onClick={() => handleSocialLogin("github")}
                                             disabled={!!loading}
                                             className="flex items-center justify-center gap-2 w-full h-[56px] bg-white border-[3px] border-black shadow-[4px_4px_0px_#000] font-black uppercase text-sm hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:bg-gray-100 disabled:opacity-50"
                                         >
@@ -461,13 +494,27 @@ export default function AuthClient() {
                                             )}
                                         </button>
 
-                                        <button
-                                            type="button"
-                                            onClick={() => setPendingVerification(false)}
-                                            className="w-full py-2 text-[10px] font-black uppercase text-gray-500 hover:text-black transition-colors"
-                                        >
-                                            Back to Registration
-                                        </button>
+                                        <div className="flex items-center justify-between pt-1">
+                                            <button
+                                                type="button"
+                                                onClick={onResendCode}
+                                                disabled={!!loading}
+                                                className="text-[10px] font-black uppercase tracking-widest text-[#0D43E8] hover:underline disabled:opacity-50"
+                                            >
+                                                {loading === "resend" ? "Sending..." : "Resend Code"}
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setPendingVerification(false)}
+                                                className="text-[10px] font-black uppercase text-gray-500 hover:text-black transition-colors"
+                                            >
+                                                Back to Registration
+                                            </button>
+                                        </div>
+                                        {notice && (
+                                            <p className="text-xs font-bold text-green-700 bg-green-100 border-[2px] border-black px-3 py-2">{notice}</p>
+                                        )}
                                     </form>
                                 </motion.div>
                             )}
@@ -482,9 +529,6 @@ export default function AuthClient() {
                     </motion.div>
                 </section>
             </div>
-
-            {/* Required for Clerk bot protection sign-up flows */}
-            <div id="clerk-captcha" />
         </main>
     );
 }

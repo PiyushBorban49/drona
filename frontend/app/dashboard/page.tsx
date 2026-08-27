@@ -1,4 +1,6 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Flame, GraduationCap, Star,
@@ -6,9 +8,8 @@ import {
 } from "lucide-react";
 
 import Image from "next/image";
-import { currentUser } from "@clerk/nextjs/server";
-import clientPromise from "@/lib/mongodb";
-import { update_streak } from "@/lib/user_service";
+import { useUser } from "@/context/AuthContext";
+import { fetchAPI } from "@/lib/api";
 import ProgressBar from "@/components/ProgressBar";
 import QuickStartComponent from "@/components/QuickStartComponent";
 
@@ -23,78 +24,67 @@ interface Course {
   playback_id?: string;
 }
 
-export default async function DashboardPage() {
-  const user = await currentUser();
+interface UserStats {
+  user_id: string;
+  xp: number;
+  level: number;
+  streak: number;
+  hours_learned: number;
+  continue_learning: Course[];
+}
 
-  let mongoUser = null;
-  if (user) {
-    try {
-      const client = await clientPromise;
-      if (client) {
-        const db = client.db();
-        await update_streak(user.id);
+export default function DashboardPage() {
+  const { isLoaded, isSignedIn, user } = useUser();
+  const [stats, setStats] = useState<UserStats | null>(null);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
-        const email = user.emailAddresses[0]?.emailAddress;
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user?.id) return;
 
-        // Sync basic info and initialize stats if they don't exist
-        const result = await db.collection("users").findOneAndUpdate(
-          { clerkId: user.id },
-          {
-            $set: {
-              email: email,
-              name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || "User",
-              updatedAt: new Date()
-            },
-            $setOnInsert: {
-              clerkId: user.id,
-              createdAt: new Date(),
-              streak: 0,
-              xp: 0,
-              hoursLearned: 0,
-              coursesCompleted: 0,
-              level: 1,
-              continueLearning: [
-                {
-                  id: "course-1",
-                  title: "Introduction to Cellular Biology",
-                  category: "Biology 101",
-                  image: "https://images.unsplash.com/photo-1541339907198-e08756ebafe3?q=80&w=2070&auto=format&fit=crop",
-                  progress: 65,
-                  timeLeft: "12 mins left"
-                }
-              ]
-            }
-          },
-          { upsert: true, returnDocument: 'after' }
-        );
+    let cancelled = false;
 
-        // MongoDB driver version compatibility fix
-        // In v6+, findOneAndUpdate returns the document directly or a ModifyResult if specified
-        mongoUser = (result && 'value' in result) ? result.value : result;
+    async function load() {
+      try {
+        // Streak bump on dashboard visit (preserves the legacy behaviour).
+        await fetchAPI("/user/activity/ping", { method: "POST", body: "{}" });
 
-        if (mongoUser) {
-          console.log(`[Dashboard] User sync successful for ${email} (Clerk ID: ${user.id})`);
-        } else {
-          console.warn(`[Dashboard] User sync failed or returned no document for ${email}`);
+        const data = await fetchAPI<{ success: boolean; stats: UserStats }>("/user/stats");
+        if (!cancelled) {
+          setStats(data.stats);
+          setStatsError(null);
         }
-      } else {
-        console.warn("[Dashboard] MongoDB client is null — skipping user sync.");
+      } catch (err) {
+        console.error("Failed to load stats:", err);
+        if (!cancelled) setStatsError(err instanceof Error ? err.message : "Failed to load stats");
       }
-    } catch (error) {
-      console.error("Failed to sync/fetch user from MongoDB:", error);
     }
+
+    void load();
+
+    return () => { cancelled = true; };
+  }, [isLoaded, isSignedIn, user?.id]);
+
+  if (!isLoaded || (isSignedIn && !stats && !statsError)) {
+    return (
+      <div className="max-w-6xl mx-auto py-24 flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
-  // Fallback to defaults if DB fails or mongoUser is null
-  const stats = {
-    streak: mongoUser?.streak ?? 0,
-    coursesCompleted: mongoUser?.coursesCompleted ?? 0,
-    xp: mongoUser?.xp ?? 0,
-    level: mongoUser?.level ?? 1,
+  // Defaults when stats are missing or failed to load
+  const view = {
+    streak: stats?.streak ?? 0,
+    lessonsSaved: stats?.continue_learning?.length ?? 0,
+    xp: stats?.xp ?? 0,
+    level: stats?.level ?? 1,
+    hoursLearned: Math.round(stats?.hours_learned ?? 0),
     xpToNextLevel: 500,
-    continueLearning: mongoUser?.continueLearning ?? [],
+    continueLearning: stats?.continue_learning ?? [],
   };
-  
+
+  const XP_PER_LEVEL = view.xpToNextLevel;
+
   return (
     <div className="max-w-6xl mx-auto space-y-12">
       {/* Welcome Header */}
@@ -108,6 +98,9 @@ export default async function DashboardPage() {
               Ready to crush your learning goals today?
             </p>
           </div>
+          {statsError && (
+            <p className="mt-3 text-sm font-bold text-red-600">{statsError}</p>
+          )}
         </div>
         <QuickStartComponent />
       </div>
@@ -120,24 +113,25 @@ export default async function DashboardPage() {
           <div className="relative z-10">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-black opacity-60">Current Streak</h3>
             <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-7xl font-black tracking-tighter">{stats.streak}</span>
+              <span className="text-7xl font-black tracking-tighter">{view.streak}</span>
               <span className="text-xl font-black uppercase">Days</span>
             </div>
             <p className="text-xs font-bold text-black mt-4 max-w-[150px]">
-              {stats.streak > 0 ? "You're on fire! Keep it up." : "Start your streak today!"}
+              {view.streak > 0 ? "You're on fire! Keep it up." : "Start your streak today!"}
             </p>
           </div>
           <Flame size={120} className="absolute -bottom-4 -right-4 text-black opacity-10 group-hover:scale-110 transition-transform" strokeWidth={3} />
         </div>
 
-        {/* Courses Card */}
+        {/* Lessons Saved Card */}
         <div className="bg-[#D1D5FF] border-[4px] border-black p-8 shadow-[8px_8px_0_0_rgba(0,0,0,1)] relative overflow-hidden group hover:-translate-y-1 transition-all">
           <div className="relative z-10">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-black opacity-60">Courses Completed</h3>
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-black opacity-60">Lessons Saved</h3>
             <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-7xl font-black tracking-tighter">{stats.coursesCompleted}</span>
+              <span className="text-7xl font-black tracking-tighter">{view.lessonsSaved}</span>
+              <span className="text-lg font-black uppercase mt-4">/ {view.hoursLearned}h studied</span>
             </div>
-            <p className="text-xs font-bold text-black mt-4 max-w-[180px]">Keep learning to reach the top!</p>
+            <p className="text-xs font-bold text-black mt-4 max-w-[180px]">Every video you generate lands here.</p>
           </div>
           <GraduationCap size={120} className="absolute -bottom-8 -right-4 text-black opacity-10 group-hover:scale-110 transition-transform" strokeWidth={3} />
         </div>
@@ -147,16 +141,16 @@ export default async function DashboardPage() {
           <div className="relative z-10">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-black opacity-60">Total XP</h3>
             <div className="flex items-baseline gap-2 mt-2">
-              <span className="text-6xl font-black tracking-tighter">{stats.xp.toLocaleString()}</span>
+              <span className="text-6xl font-black tracking-tighter">{view.xp.toLocaleString()}</span>
             </div>
             {/* Progress Bar */}
             <div className="mt-8 relative">
               <ProgressBar
-                progress={(stats.xp % stats.xpToNextLevel) / stats.xpToNextLevel * 100}
+                progress={(view.xp % XP_PER_LEVEL) / XP_PER_LEVEL * 100}
                 title="XP Progress"
                 barClassName="bg-[#BE003F]"
               />
-              <div className="text-[10px] font-black uppercase tracking-widest mt-4">Level {stats.level} • {stats.xpToNextLevel - (stats.xp % stats.xpToNextLevel)} XP to Next Level</div>
+              <div className="text-[10px] font-black uppercase tracking-widest mt-4">Level {view.level} • {XP_PER_LEVEL - (view.xp % XP_PER_LEVEL)} XP to Next Level</div>
             </div>
           </div>
           <Star size={120} className="absolute -bottom-4 -right-4 text-black opacity-10 group-hover:rotate-12 transition-transform" strokeWidth={3} />
@@ -174,7 +168,12 @@ export default async function DashboardPage() {
 
           {/* Cards Container */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {stats.continueLearning.map((course: Course) => (
+            {view.continueLearning.length === 0 && (
+              <p className="text-sm font-bold text-gray-500">
+                Nothing here yet — generate your first AI video and it will show up.
+              </p>
+            )}
+            {view.continueLearning.map((course: Course) => (
               <Link
                 key={course.id}
                 href={`/dashboard/video?topic=${encodeURIComponent(course.title)}${course.video_url ? `&video_url=${encodeURIComponent(course.video_url)}` : ''}${course.playback_id ? `&playback_id=${encodeURIComponent(course.playback_id)}` : ''}`}

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useStudy } from "@/context/StudyContext";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/context/AuthContext";
 import {
     Sparkles, X, ChevronDown,
     Download, AlertCircle, FileUp, Loader2, KeyRound, Eye, EyeOff
@@ -96,7 +96,7 @@ function VideoContent() {
 
                 // Save to Continue Learning (Persistence)
                 if (user?.id) {
-                    await saveToContinueLearning(user.id, {
+                    await saveToContinueLearning({
                         id: `vid_${Date.now()}`,
                         title: topic,
                         category: "AI Video",
@@ -145,7 +145,7 @@ function VideoContent() {
                 setProgress(100);
 
                 if (user?.id) {
-                    await saveToContinueLearning(user.id, {
+                    await saveToContinueLearning({
                         id: `doc_${Date.now()}`,
                         title: result.topic || file.name,
                         category: "Document Video",

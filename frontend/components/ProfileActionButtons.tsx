@@ -3,7 +3,7 @@ import React from "react";
 
 export default function ProfileActionButtons() {
     const handleEdit = () => {
-        // Since we are using Clerk, the best way to "edit profile" is to use the Clerk UserProfile or redirect to settings
+        // Profile editing is handled by the ProfileEditModal on the settings page.
         window.location.href = "/dashboard/settings";
     };
 

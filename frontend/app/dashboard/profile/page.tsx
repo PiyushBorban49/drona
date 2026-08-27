@@ -1,40 +1,58 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useState } from "react";
 import {
     Trophy, Target, Zap, Clock, Edit3, Award
 } from "lucide-react";
 import ProfileActionButtons from "@/components/ProfileActionButtons";
 
 import Image from "next/image";
-import { currentUser } from "@clerk/nextjs/server";
-import clientPromise from "@/lib/mongodb";
-import { update_streak } from "@/lib/user_service";
-import { redirect } from "next/navigation";
+import { useUser } from "@/context/AuthContext";
+import { fetchAPI } from "@/lib/api";
 
-export default async function ProfilePage() {
-    const user = await currentUser();
+interface UserStats {
+    user_id: string;
+    xp: number;
+    level: number;
+    streak: number;
+    hours_learned: number;
+}
 
-    if (!user) {
-        redirect("/sign-in");
-    }
+export default function ProfilePage() {
+    const { isLoaded, isSignedIn, user } = useUser();
+    const [stats, setStats] = useState<UserStats | null>(null);
 
-    let mongoUser = null;
-    try {
-        const client = await clientPromise;
-        if (client) {
-            const db = client.db();
-            // Sync streak
-            await update_streak(user.id);
-            mongoUser = await db.collection("users").findOne({ clerkId: user.id });
+    useEffect(() => {
+        if (!isLoaded || !isSignedIn) return;
+
+        let cancelled = false;
+
+        async function load() {
+            try {
+                const data = await fetchAPI<{ success: boolean; stats: UserStats }>("/user/stats");
+                if (!cancelled) setStats(data.stats);
+            } catch (err) {
+                console.error("Failed to fetch stats for profile:", err);
+            }
         }
-    } catch (error) {
-        console.error("Failed to fetch user for profile:", error);
+
+        void load();
+        return () => { cancelled = true; };
+    }, [isLoaded, isSignedIn]);
+
+    if (!isLoaded || !isSignedIn) {
+        return (
+            <div className="max-w-6xl mx-auto py-24 flex items-center justify-center">
+                <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
     }
 
-    const stats = [
-        { label: "Total XP", value: (mongoUser?.xp || 0).toLocaleString(), icon: Zap, color: "bg-blue-400" },
-        { label: "Current Streak", value: `${mongoUser?.streak || 0} Days`, icon: Trophy, color: "bg-[#F4E361]" },
-        { label: "Hours Learned", value: `${mongoUser?.hoursLearned || 0}h`, icon: Clock, color: "bg-pink-400" },
-        { label: "Completion", value: `${mongoUser?.coursesCompleted || 0}%`, icon: Target, color: "bg-emerald-400" },
+    const statsCards = [
+        { label: "Total XP", value: (stats?.xp ?? 0).toLocaleString(), icon: Zap, color: "bg-blue-400" },
+        { label: "Current Streak", value: `${stats?.streak ?? 0} Days`, icon: Trophy, color: "bg-[#F4E361]" },
+        { label: "Hours Learned", value: `${Math.round(stats?.hours_learned ?? 0)}h`, icon: Clock, color: "bg-pink-400" },
+        { label: "Level", value: `LVL ${stats?.level ?? 1}`, icon: Target, color: "bg-emerald-400" },
     ];
 
     const badges = [
@@ -45,6 +63,8 @@ export default async function ProfilePage() {
         { name: "Global Rank", desc: "Top 1% of Lumina learners", earned: false },
     ];
 
+    const initialsOrSeed = user?.firstName || user?.name || "User";
+
     return (
         <div className="max-w-6xl mx-auto py-8 px-4 space-y-12">
             {/* Profile Header */}
@@ -52,7 +72,7 @@ export default async function ProfilePage() {
                 <div className="relative">
                     <div className="w-40 h-40 rounded-2xl border-[4px] border-black overflow-hidden shadow-[6px_6px_0_0_rgba(0,0,0,1)] bg-gray-100 relative">
                         <Image
-                            src={user.imageUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.firstName || 'User'}`}
+                            src={user?.imageUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${initialsOrSeed}`}
                             alt="Profile"
                             fill
                             className="object-cover"
@@ -70,10 +90,10 @@ export default async function ProfilePage() {
                     <div>
                         <div className="flex flex-wrap justify-center md:justify-start gap-3 mb-2">
                             <span className="px-3 py-1 bg-black text-white text-[10px] font-black uppercase tracking-widest border border-white">Lumina Pro</span>
-                            <span className="px-3 py-1 bg-blue-100 text-black text-[10px] font-black uppercase tracking-widest border-2 border-black">Level {mongoUser?.level || 1}</span>
+                            <span className="px-3 py-1 bg-blue-100 text-black text-[10px] font-black uppercase tracking-widest border-2 border-black">Level {stats?.level ?? 1}</span>
                         </div>
-                        <h1 className="text-6xl font-black tracking-tighter text-black uppercase">{user.firstName} {user.lastName}</h1>
-                        <p className="text-xl font-bold text-gray-500 max-w-xl">Self-taught developer and lifelong learner. Currently mastering Advanced Neural Networks and Matrix Algebra.</p>
+                        <h1 className="text-6xl font-black tracking-tighter text-black uppercase">{user?.firstName} {user?.lastName}</h1>
+                        <p className="text-xl font-bold text-gray-500 max-w-xl">{user?.email}</p>
                     </div>
 
                     <ProfileActionButtons />
@@ -84,7 +104,7 @@ export default async function ProfilePage() {
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                {stats.map((s) => (
+                {statsCards.map((s) => (
                     <div key={s.label} className={`${s.color} border-[4px] border-black p-8 shadow-[8px_8px_0_0_rgba(0,0,0,1)] group hover:-translate-y-1 transition-all`}>
                         <div className="flex justify-between items-start mb-4">
                             <div className="p-3 bg-white border-2 border-black rounded shadow-[2px_2px_0_0_rgba(0,0,0,1)]">
@@ -153,4 +173,3 @@ export default async function ProfilePage() {
         </div>
     );
 }
-

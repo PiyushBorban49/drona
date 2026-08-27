@@ -1,7 +1,8 @@
 "use client";
 import React, { useState } from "react";
 import { X, Save, User as UserIcon } from "lucide-react";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/context/AuthContext";
+import { insforge } from "@/lib/insforge";
 
 interface ProfileEditModalProps {
     isOpen: boolean;
@@ -22,12 +23,15 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
 
         setIsSaving(true);
         try {
-            await user.update({
-                firstName,
-                lastName,
-            });
+            // InsForge stores a single display-name string in the profile.
+            const fullName = `${firstName} ${lastName}`.trim();
+            const { error } = await insforge.auth.setProfile({ name: fullName });
+            if (error) throw error;
+
             alert("Profile updated successfully!");
             onClose();
+            // Reload so the auth context re-hydrates the new profile data.
+            window.location.reload();
         } catch (err) {
             console.error("Failed to update profile:", err);
             alert("Failed to update profile. Please try again.");

@@ -3,7 +3,7 @@ import React, { useState } from "react";
 
 import { getQuiz, Question, rewardXP } from "@/lib/api";
 import { useStudy } from "@/context/StudyContext";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/context/AuthContext";
 import {
     BrainCircuit, CheckCircle2, RefreshCw,
     ChevronRight, Lightbulb
@@ -65,7 +65,7 @@ export default function QuizPage() {
             // Awards XP: 10 XP per correct answer
             if (user?.id && score > 0) {
                 try {
-                    await rewardXP(user.id, score * 10);
+                    await rewardXP(score * 10);
                 } catch (err) {
                     console.error("Failed to reward XP:", err);
                 }
