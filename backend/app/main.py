@@ -73,6 +73,8 @@ def root():
         "name": "Dronacharya API",
         "version": "3.0.0",
         "status": "running",
+        "ui": "/app (Gradio control panel — mounted when gradio is installed)",
+        "docs": "/docs",
         "features": [
             "AI Tutor Chat",
             "Quiz & Flashcards",
@@ -87,4 +89,58 @@ def root():
 def health():
     s = get_settings()
     return {"status": "healthy", "llm": s.GROQ_MODEL}
+
+
+# ────────────────────────────────────────────────────────────────
+# Optional Gradio control panel
+# Auto-mounted wherever `gradio` is importable (e.g. the free
+# Hugging Face Gradio-SDK Space in hf-space-backend/). Plain local/
+# Docker installs without gradio are completely unaffected.
+# Mounted AFTER every router so API routes always win over "/app/*".
+# ────────────────────────────────────────────────────────────────
+def _build_landing_panel():
+    try:
+        import gradio as gr  # optional extra
+    except Exception:  # ImportError or any gradio runtime quirk → skip UI silently
+        return None
+
+    s = get_settings()
+    insforge_ok = bool(s.INSFORGE_URL and s.INSFORGE_API_KEY)
+    groq_ok = bool(s.GROQ_API_KEY)
+    # In-process ping — reuses the exact route handlers above, no sockets.
+    def _ping():
+        try:
+            return {"root": root(), "health": health()}
+        except Exception as exc:  # never crash the UI on a bad env
+            return {"error": f"{type(exc).__name__}: {exc}"}
+
+    with gr.Blocks(title="Dronacharya v3 — Backend Control Panel") as demo:
+        gr.Markdown(
+            "# 🎓 Dronacharya v3 — Backend Control Panel\n"
+            "FastAPI brain of the **AI NCERT Tutor** · "
+            "[open interactive docs](/docs) · [OpenAPI JSON](/openapi.json)"
+        )
+        with gr.Row():
+            gr.Markdown(
+                "**🧠 LLM model:** `" + str(s.GROQ_MODEL) + "`\n\n"
+                "**⚡ Groq key:** " + ("✅ configured" if groq_ok else "⚠️ MISSING") + "\n\n"
+                "**☁️ InsForge backend:** " + ("✅ connected" if insforge_ok else "⚠️ NOT configured") + "\n\n"
+                "**🗄 Vector DB:** InsForge Postgres + pgvector · "
+                "**🎬 Storage:** buckets on InsForge cloud"
+            )
+            btn = gr.Button("Ping /health", variant="primary")
+            out = gr.JSON(label="Server response")
+        btn.click(_ping, inputs=None, outputs=out)
+    return demo
+
+
+try:
+    _panel = _build_landing_panel()
+    if _panel is not None:
+        import gradio as gr
+
+        app = gr.mount_gradio_app(app, _panel, path="/app")
+        print("[ui] Gradio control panel mounted at /app")
+except Exception as _mount_err:  # a broken panel must NEVER kill the API
+    print(f"[ui] control panel not mounted ({type(_mount_err).__name__}: {_mount_err})")
 

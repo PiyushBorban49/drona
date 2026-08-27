@@ -126,20 +126,23 @@ npm run dev                 # http://localhost:3000
 
 ---
 
-## ☁️ Deploy on Hugging Face Spaces (full stack, one Space)
+## ☁️ Deploy on Hugging Face Spaces
 
-The included [`Dockerfile`](Dockerfile) builds **one image = frontend + backend**, serving everything on port **7860** (HF contract), running as non-root uid 1000, healthchecked via uvicorn readiness.
+| Path | HF compute | What you get |
+|---|---|---|
+| 🟢 **Option A — Gradio SDK Space** (recommended) | **FREE** | Backend API + 🎓 `/app` control panel; run the UI locally or anywhere |
+| 🐳 Option B — Docker Space (full stack) | paid | Entire product behind one `*.hf.space` URL |
 
 ```bash
-# 1. Create a Space → SDK: Docker → Blank
-# 2. Add Secrets:      GROQ_API_KEY · INSFORGE_URL · INSFORGE_API_KEY (+optionals)
-# 3. Add Variables:    NEXT_PUBLIC_INSFORGE_URL · NEXT_PUBLIC_INSFORGE_ANON_KEY
-#                      (baked at build time — they are public by design)
-# 4. git remote add space https://huggingface.co/spaces/<user>/<space>
-#    git push space main        # build ≈ 8–12 min (Manim base + Next build)
+# FREE backend path — one command (stages clean tree + pre-push import check):
+hf auth login                                       # once
+./scripts/deploy_backend_space.sh <you>/drona-backend
+# then on the Space set Secrets  GROQ_API_KEY · INSFORGE_URL · INSFORGE_API_KEY
+#           and Variable  CORS_ORIGINS=["http://localhost:3000"]
+# and in frontend/.env.local → NEXT_PUBLIC_API_URL=https://<you>-drona-backend.hf.space
 ```
 
-Full walkthrough incl. split-hosting alternative & persistence: **[docs/DEPLOYMENT_HF.md](docs/DEPLOYMENT_HF.md)**
+All walkthroughs (free & docker paths, split hosting, persistence, CORS matrix): **[docs/DEPLOYMENT_HF.md](docs/DEPLOYMENT_HF.md)**
 
 ---
 
