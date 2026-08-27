@@ -107,6 +107,10 @@ def normalize_mindmap(data) -> dict:
 
 _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.DOTALL | re.IGNORECASE)
 
+# Generous ceiling so reasoning-mode models (see below) fit thinking + answer.
+_MAX_COMPLETION_TOKENS = 8192
+_REASONING_KEYS = ("reasoning", "reasoning_content", "thinking", "analysis")
+
 
 def _coerce_text(response) -> str:
     """LangChain message.content may arrive as str OR a list of blocks — always return plain text."""
@@ -120,6 +124,32 @@ def _coerce_text(response) -> str:
                 chunks.append(str(block))
         return "".join(chunks).strip()
     return str(content or "").strip()
+
+
+def _provider_reasoning(response) -> str:
+    """
+    Reasoning-mode models served over OpenAI-compatible APIs (groq's
+    openai/gpt-oss-*, Qwen-thinking, R1 distills) may put their real output in
+    a hidden reasoning/analysis buffer, leaving message.content EMPTY.
+    Best-effort recovery: collect any reasoning-ish fields the SDK stored.
+    """
+    found: list[str] = []
+    for container_name in ("additional_kwargs", "response_metadata"):
+        cont = getattr(response, container_name, None)
+        if isinstance(cont, dict):
+            for key in _REASONING_KEYS:
+                v = cont.get(key)
+                if isinstance(v, dict):
+                    v = v.get("text") or v.get("content")
+                if isinstance(v, str) and v.strip():
+                    found.append(v.strip())
+    # de-duplicate while preserving order
+    seen, uniq = set(), []
+    for f in found:
+        if f not in seen:
+            seen.add(f)
+            uniq.append(f)
+    return "\n".join(uniq)
 
 
 def _extract_json_object(raw: str) -> str:
@@ -189,8 +219,25 @@ Return ONLY valid JSON:
 
 def _attempt(llm, topic: str, context: str, strict: bool) -> dict:
     """One LLM round-trip → normalized mindmap. Raises ValueError/JSONDecodeError on bad output."""
-    response = llm.invoke([HumanMessage(content=_build_prompt(topic, context, strict))])
-    data = json.loads(_extract_json_object(_coerce_text(response)))
+    prompt = _build_prompt(topic, context, strict)
+    call_kwargs: dict = {"max_tokens": _MAX_COMPLETION_TOKENS}
+    # gpt-oss-style models “think” in an analysis channel before answering;
+    # explicitly LOW effort keeps room (and budget) for the actual JSON answer.
+    if str(getattr(llm, "model_name", "")).startswith("openai/gpt-oss"):
+        call_kwargs["reasoning_effort"] = "low"
+    response = llm.bind(**call_kwargs).invoke([HumanMessage(content=prompt)])
+
+    text = _coerce_text(response)
+    if not text:
+        reasoning = _provider_reasoning(response)
+        finish = (getattr(response, "response_metadata", None) or {}).get("finish_reason")
+        print(
+            f"[mindmap] empty content from model={getattr(llm, 'model_name', '?')} "
+            f"finish_reason={finish}; probing hidden reasoning buffer ({len(reasoning)} chars)",
+            flush=True,
+        )
+        text = _extract_json_object(reasoning)  # raises info-rich ValueError if truly empty
+    data = json.loads(_extract_json_object(text))
     return normalize_mindmap(data)
 
 
