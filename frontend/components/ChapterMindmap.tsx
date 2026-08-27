@@ -36,9 +36,13 @@ interface ChapterMindmapProps {
 const ExplorerNode: React.FC<NodeProps> = ({ data }) => {
     const isSelected = data.isSelected;
 
+    // Defensive string coercion — a malformed node must never white-screen the app
+    const rawLabel = typeof data.label === "string" ? data.label : String(data.label ?? "Subtopic");
+    const description = typeof data.description === "string" ? data.description : "";
+
     // Map labels to specific colors/icons as in the screenshot
     const getStyle = () => {
-        const label = data.label.toLowerCase();
+        const label = rawLabel.toLowerCase();
         if (label.includes("protein")) return { bg: "bg-[#F4E361]", icon: <BrainCircuit size={18} /> };
         if (label.includes("energy")) return { bg: "bg-[#F7CAD0]", icon: <Zap size={18} className="text-[#BE003F]" /> };
         if (label.includes("membrane")) return { bg: "bg-white", icon: <Layers size={18} className="text-blue-600" />, accent: "text-blue-600" };
@@ -60,11 +64,11 @@ const ExplorerNode: React.FC<NodeProps> = ({ data }) => {
 
                 <div>
                     <h4 className={`font-black text-2xl uppercase tracking-tighter leading-none ${style.accent || "text-black"}`}>
-                        {data.label}
+                        {rawLabel}
                     </h4>
-                    {data.description && (
+                    {description && (
                         <p className="text-[10px] font-bold text-gray-500 mt-2 leading-snug line-clamp-2 uppercase tracking-wide">
-                            {data.description}
+                            {description}
                         </p>
                     )}
                 </div>

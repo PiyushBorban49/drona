@@ -18,11 +18,25 @@ export async function fetchAPI<T>(endpoint: string, options: RequestInit = {}): 
         let errorMsg = `API Error: ${response.status}`;
         try {
             const errorData = await response.json();
-            if (errorData && errorData.detail) {
-                errorMsg = errorData.detail;
+            const detail = (errorData as { detail?: unknown })?.detail;
+            if (typeof detail === "string") {
+                errorMsg = detail;
+            } else if (Array.isArray(detail)) {
+                // FastAPI 422 validation errors: detail is an array of objects
+                errorMsg = detail
+                    .map((d) => {
+                        const item = d as { loc?: (string | number)[]; msg?: string };
+                        return `${(item.loc ?? []).slice(1).join(".")}: ${item.msg ?? JSON.stringify(d)}`;
+                    })
+                    .join("; ");
+                errorMsg = `Validation failed → ${errorMsg}`;
+            } else if (detail != null) {
+                errorMsg = JSON.stringify(detail);
+            } else if (errorData?.error) {
+                errorMsg = String(errorData.error);
             }
         } catch {
-            throw new Error("Not a JSON response or doesn't have detail");
+            // Non-JSON body — keep the status-based message
         }
         throw new Error(errorMsg);
     }
@@ -420,7 +434,7 @@ export async function generateVideoFromFile(workspace_id: string, file: File): P
 export async function startScenario(topic: string): Promise<ScenarioStartResponse> {
     return fetchAPI<ScenarioStartResponse>('/scenario/start', {
         method: 'POST',
-        body: JSON.stringify({ workspace_id: 'default', user_id: 'default', topic }),
+        body: JSON.stringify({ workspace_id: 'default', topic }),
     });
 }
 
@@ -433,7 +447,6 @@ export async function respondToScenario(
     return fetchAPI<ScenarioResponse>('/scenario/respond', {
         method: 'POST',
         body: JSON.stringify({
-            user_id: 'default',
             scenario_id,
             scenario_context,
             user_response,

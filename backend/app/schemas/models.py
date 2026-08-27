@@ -13,7 +13,9 @@ class TopicRequest(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    user_id: str
+    # Identity is taken from the Authorization JWT (InsForge Auth); user_id
+    # remains accepted-but-ignored for backward compatibility.
+    user_id: Optional[str] = None
     message: str
     workspace_id: str
     chat_history: List[Dict[str, str]] = []
@@ -44,13 +46,13 @@ class SubtopicVideoRequest(BaseModel):
 
 # ── Scenario (Boss Fight) ───────────────────────────
 class ScenarioStartRequest(BaseModel):
-    user_id: str
+    user_id: Optional[str] = None   # legacy field; identity comes from JWT
     workspace_id: str
     topic: Optional[str] = None
 
 
 class ScenarioRespondRequest(BaseModel):
-    user_id: str
+    user_id: Optional[str] = None   # legacy field; identity comes from JWT
     scenario_id: str
     user_response: str
     turn_history: List[Dict[str, str]] = []
@@ -61,7 +63,7 @@ class ScenarioRespondRequest(BaseModel):
 
 # ── Voice ────────────────────────────────────────────
 class VoiceChatMessage(BaseModel):
-    user_id: str
+    user_id: Optional[str] = None   # legacy field; identity comes from JWT
     message: str
     workspace_id: str
     chat_history: List[Dict[str, str]] = []
