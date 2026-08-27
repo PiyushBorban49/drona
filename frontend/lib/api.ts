@@ -123,6 +123,8 @@ export interface MindMapResponse {
         nodes: MindMapNode[];
         edges: MindMapEdge[];
     };
+    error?: string;      // present when success=false — backend failure reason
+    fallback?: boolean;  // true when served the deterministic offline layout
 }
 
 // Quiz Types

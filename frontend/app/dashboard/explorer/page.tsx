@@ -5,7 +5,7 @@ import { useStudy } from "@/context/StudyContext";
 import TopicDetailsSidebar from "@/components/TopicDetailsSidebar";
 import VideoPlayer from "@/components/VideoPlayer";
 import SmartImportModal from "@/components/SmartImportModal";
-import { Compass, RefreshCw, Plus, Minus, Maximize, Database } from "lucide-react";
+import { Compass, RefreshCw, Plus, Minus, Maximize, Database, AlertTriangle, LayoutGrid } from "lucide-react";
 import {
     getMindMapByTopic,
     generateSubtopicVideo,
@@ -21,6 +21,7 @@ export default function ChapterExplorerPage() {
     const [mindmapData, setMindmapData] = useState<{ nodes: MindMapNode[], edges: MindMapEdge[] } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isFallback, setIsFallback] = useState(false);
 
     const [selectedSubtopic, setSelectedSubtopic] = useState<Subtopic | null>(null);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -37,6 +38,7 @@ export default function ChapterExplorerPage() {
 
         setIsLoading(true);
         setError(null);
+        setIsFallback(false);
         setSelectedSubtopic(null);
         setActiveSubtopic(null);
         setVideoUrl(null);
@@ -44,14 +46,20 @@ export default function ChapterExplorerPage() {
 
         try {
             const response = await getMindMapByTopic(topicToSearch);
-            if (response.success && response.mindmap) {
+            if (response.success && response.mindmap && Array.isArray(response.mindmap.nodes) && response.mindmap.nodes.length > 0) {
                 setMindmapData(response.mindmap);
+                setIsFallback(Boolean(response.fallback));
             } else {
-                setError("Failed to generate mindmap. Please try again.");
+                // Backend returns {success:false, error:"…"} on AI failures — surface the real reason.
+                setError(response.error
+                    ? `Generation failed — ${response.error}`
+                    : "Failed to generate a valid mindmap. Please try again.");
+                console.warn("[mindmap] backend refused generation:", response);
             }
         } catch (e) {
-            setError("Failed to connect to API");
-            console.error(e);
+            const msg = e instanceof Error ? e.message : String(e);
+            setError(`Could not reach the server — ${msg}. Is the backend running?`);
+            console.error("[mindmap] request error:", e);
         } finally {
             setIsLoading(false);
         }
@@ -183,6 +191,13 @@ export default function ChapterExplorerPage() {
                                     </form>
                                 </div>
 
+                                {isFallback && (
+                                    <div className="absolute top-24 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-4 py-2 bg-[#F4E361] border-[3px] border-black shadow-[4px_4px_0_0_rgba(0,0,0,1)]">
+                                        <LayoutGrid size={14} className="text-black" strokeWidth={3} />
+                                        <span className="text-[11px] font-black uppercase tracking-widest">Offline layout — AI engine unreachable right now</span>
+                                    </div>
+                                )}
+
                                 <ChapterMindmap
                                     ref={mindmapRef}
                                     nodes={mindmapData.nodes}
@@ -191,6 +206,24 @@ export default function ChapterExplorerPage() {
                                     onGenerateVideo={(data) => handleGenerateVideo(data as unknown as Subtopic)}
                                 />
                             </>
+                        )}
+
+                        {error && !isLoading && (
+                            <div className="flex flex-col items-center justify-center h-full space-y-8 animate-in fade-in zoom-in duration-300 px-4">
+                                <div className="p-8 bg-red-500 border-[4px] border-black shadow-[12px_12px_0_0_rgba(0,0,0,1)] -rotate-3">
+                                    <AlertTriangle size={72} className="text-black" strokeWidth={2.5} />
+                                </div>
+                                <div className="text-center space-y-3 max-w-xl">
+                                    <h3 className="text-4xl font-black uppercase tracking-tighter italic">Mapper Malfunction</h3>
+                                    <p className="px-5 py-3 bg-black text-[#F4E361] text-sm font-bold tracking-wide break-words">{error}</p>
+                                </div>
+                                <button
+                                    onClick={() => handleSearch()}
+                                    className="px-10 py-4 bg-[#003BFF] text-white font-black text-lg hover:bg-blue-700 transition-all shadow-[8px_8px_0_0_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none uppercase tracking-widest border-[4px] border-black"
+                                >
+                                    Try Again
+                                </button>
+                            </div>
                         )}
 
                         {isLoading && (

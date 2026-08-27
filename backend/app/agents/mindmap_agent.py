@@ -2,13 +2,19 @@
 Dronacharya v3 — Mindmap Agent
 Generates ReactFlow-compatible mindmap data.
 
-The raw LLM JSON is NEVER passed straight to the client: every response goes
-through normalize_mindmap(), which guarantees the exact contract the explorer
-page expects (valid ids, string labels, numeric positions, edges that only
-reference existing nodes). A malformed LLM answer therefore degrades into a
-clean success/empty graph instead of white-screening the frontend.
+Hardening summary (every real production failure mode covered):
+  1. Empty / prose-wrapped / markdown-fenced LLM output  -> _extract_json_object()
+     pulls the outermost {...} instead of json.loads-ing the whole string.
+     (Fixes '[mindmap] generation failed: Expecting value: line 1 column 1')
+  2. Flaky one-off bad replies                          -> retried once with a
+     stricter 'ONLY raw JSON' instruction before giving up.
+  3. LLM layer completely unavailable                   -> deterministic offline
+     fallback layout built locally so the explorer canvas is never blank.
+The raw LLM JSON is NEVER passed straight to the client in any branch:
+everything flows through normalize_mindmap() or the contract-shape builder.
 """
 import json
+import re
 from langchain_core.messages import HumanMessage
 from app.dependencies import get_llm_strict
 
@@ -99,10 +105,48 @@ def normalize_mindmap(data) -> dict:
     return {"nodes": nodes_out, "edges": edges_out}
 
 
-def generate_mindmap(topic: str, context: str = "") -> dict:
-    llm = get_llm_strict()
+_FENCE_RE = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.DOTALL | re.IGNORECASE)
+
+
+def _coerce_text(response) -> str:
+    """LangChain message.content may arrive as str OR a list of blocks — always return plain text."""
+    content = getattr(response, "content", "")
+    if isinstance(content, list):
+        chunks = []
+        for block in content:
+            if isinstance(block, dict):
+                chunks.append(str(block.get("text") or block.get("content") or ""))
+            else:
+                chunks.append(str(block))
+        return "".join(chunks).strip()
+    return str(content or "").strip()
+
+
+def _extract_json_object(raw: str) -> str:
+    """
+    Pull the outermost JSON object out of arbitrary model output — plain JSON,
+    ```json fences, prose around the object, trailing chatter all supported.
+    Raises ValueError with a short, log-safe preview when nothing exists.
+    """
+    text = (raw or "").strip()
+    if not text:
+        raise ValueError("model returned an EMPTY response")
+
+    m = _FENCE_RE.match(text)
+    if m and "{" in m.group(1):
+        text = m.group(1).strip()
+
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        preview = text[:140] + ("…" if len(text) > 140 else "")
+        raise ValueError(f"no JSON object found in model output: {preview!r}")
+    return text[start:end + 1]
+
+
+def _build_prompt(topic: str, context: str, strict: bool) -> str:
+    ctx = context[:3000] if context else "Use general NCERT knowledge."
     prompt = f"""Create a rich, well-spaced React Flow mindmap for: {topic}
-Context: {context[:3000] if context else "Use general NCERT knowledge."}
+Context: {ctx}
 
 The mindmap should be structured for an educational explorer.
 Return ONLY valid JSON:
@@ -134,16 +178,116 @@ Return ONLY valid JSON:
 4. NO TWO NODES SHOULD BE WITHIN 250 UNITS OF EACH OTHER.
 5. All nodes must be type "explorer".
 """
+    if strict:
+        prompt += (
+            "\nIMPORTANT: Output ONLY the raw JSON object itself. No markdown "
+            "code fences, no explanations before or after, no headings. "
+            "Start your reply with '{' and end it with '}'.\n"
+        )
+    return prompt
 
+
+def _attempt(llm, topic: str, context: str, strict: bool) -> dict:
+    """One LLM round-trip → normalized mindmap. Raises ValueError/JSONDecodeError on bad output."""
+    response = llm.invoke([HumanMessage(content=_build_prompt(topic, context, strict))])
+    data = json.loads(_extract_json_object(_coerce_text(response)))
+    return normalize_mindmap(data)
+
+
+def _offline_fallback(topic: str, context: str) -> dict:
+    """
+    Deterministic local mindmap used when the AI layer is unavailable, so the
+    explorer always renders something coherent instead of a blank canvas.
+    Labels come from context sentences when available, otherwise generic but
+    honest subtopics derived from the topic string.
+    """
+    def _truncate(s: str, n: int = 46) -> str:
+        s = s.strip().rstrip(".")
+        return s if len(s) <= n else s[:s[:n].rfind(" ")].strip() or s[:n]
+
+    labels: list[str] = []
+    if context:
+        sentences = re.split(r"(?<=[.!?])\s+|\n+", context)
+        for s in sentences:
+            s = s.strip()
+            if len(s) > 15 and len(s) < 220:
+                labels.append(_truncate(s))
+            if len(labels) >= 6:
+                break
+
+    topic_words = [w.capitalize() for w in re.findall(r"[a-zA-Z]{3,}", topic)[:4]]
+    generic_fillers = [
+        "Key Concepts",
+        "How It Works",
+        "Real-world Applications",
+        "Important Formulas" if any(w.lower() in ("physics", "mathematics", "maths") for w in topic_words) else "Common Examples",
+        "Exam Tips",
+        "Quick Revision",
+    ]
+    i = 0
+    while len(labels) < 6 and i < len(generic_fillers):
+        filler = generic_fillers[i]
+        label = f"{filler}: {' '.join(topic_words)}" if topic_words else filler
+        labels.append(label)
+        i += 1
+    labels = labels[:8]
+
+    nodes = [{
+        "id": "1",
+        "type": "explorer",
+        "position": {"x": 600, "y": 50},
+        "data": {
+            "label": _truncate(topic, 60) or "Main Topic",
+            "description": "Offline placeholder map — the AI engine was unreachable, showing an auto-arranged outline you can navigate.",
+            "video_url": "",
+            "progress": 0,
+            "quiz_available": True,
+            "key_points": [],
+        },
+    }]
+    edges = []
+    per_row = 4
+    for i, label in enumerate(labels):
+        row, col = divmod(i, per_row)
+        nid = str(i + 2)
+        nodes.append({
+            "id": nid,
+            "type": "explorer",
+            "position": {"x": 40 + col * 300, "y": 420 + row * 340},
+            "data": {
+                "label": label,
+                "description": "",
+                "video_url": "",
+                "progress": 0,
+                "quiz_available": False,
+                "key_points": [],
+            },
+        })
+        edges.append({"id": f"e1-{nid}", "source": "1", "target": nid, "animated": True})
+
+    return {"nodes": nodes, "edges": edges}
+
+
+def generate_mindmap(topic: str, context: str = "") -> dict:
+    # Up to 2 LLM rounds (second with a stricter raw-JSON instruction)…
     try:
-        response = llm.invoke([HumanMessage(content=prompt)])
-        content = response.content.strip()
-        if content.startswith("```"):
-            parts = content.split("```")
-            content = parts[1].replace("json", "").strip() if len(parts) > 1 else content
-
-        data = normalize_mindmap(json.loads(content))
-        return {"success": True, "mindmap": data}
+        llm = get_llm_strict()
+        last_error: Exception | None = None
+        for attempt, strict in enumerate((False, True), start=1):
+            try:
+                data = _attempt(llm, topic, context, strict=strict)
+                return {"success": True, "mindmap": data}
+            except (ValueError, json.JSONDecodeError) as e:
+                last_error = e
+                print(f"[mindmap] attempt {attempt}/2 failed: {e}", flush=True)
+        raise ValueError(str(last_error))
     except Exception as e:
+        # …and a guaranteed-local fallback so the canvas never goes blank.
         print(f"[mindmap] generation failed: {e}", flush=True)
-        return {"success": False, "error": str(e)}
+        try:
+            fallback = _offline_fallback(topic, context)
+            print(f"[mindmap] serving OFFLINE FALLBACK layout ({len(fallback['nodes'])} nodes)", flush=True)
+            return {"success": True, "mindmap": fallback, "fallback": True}
+        except Exception as fe:
+            print(f"[mindmap] fallback failed too: {fe}", flush=True)
+            return {"success": False, "error": str(e)}
